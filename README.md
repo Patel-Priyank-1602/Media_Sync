@@ -1,5 +1,7 @@
 # Real-Time Sync Media Server (YouTube + Local Video + Local Audio + PPTX)
-📄 **Documentation:** https://rmsdocs.netlify.app/
+⚠️ **Note:** This repository contains an **older version** of the project.  
+For the **latest version and updated setup guide**, please visit the **documentation**
+📄 https://rmsdocs.netlify.app/
 
 This is a simple, self-hosted Node.js server designed to synchronize YouTube video, Local Video, Local Audio and PPTX Presentation playback across multiple clients on a local network 🏠. It's perfect for creating a shared viewing experience where one person can control the media (play, pause, seek, load, navigate slides) for everyone else, all in real-time.
 
