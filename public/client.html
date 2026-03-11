@@ -3,15 +3,13 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Media Sync Client</title>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Video.js for better codec support -->
-  <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-  <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
   <style>
     * {
       margin: 0;
@@ -24,158 +22,361 @@
       color: #ffffff;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 20px;
+      padding: 0;
+      overflow-x: hidden;
     }
 
     .container {
       width: 100%;
-      max-width: 900px;
+      max-width: 100%;
+      padding: 0;
+    }
+
+    header {
+      padding: 20px;
+      text-align: center;
+      background: #0a0a0a;
+      border-bottom: 1px solid #222222;
     }
 
     header h1 {
-      font-size: 2.8rem;
+      font-size: 1.8rem;
       font-weight: 700;
       letter-spacing: -1px;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
       color: #ffffff;
     }
 
     header p {
       color: #888888;
-      font-size: 1.1rem;
+      font-size: 0.9rem;
       font-weight: 500;
     }
 
-    .card {
+    /* Tabs */
+    .tabs {
+      display: flex;
       background: #0a0a0a;
-      border: 1px solid #222222;
-      border-radius: 20px;
-      padding: 32px;
-      margin-top: 32px;
+      border-bottom: 1px solid #222222;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
-    .media-info {
-      background: #111111;
-      border: 1px solid #222222;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .tabs::-webkit-scrollbar {
+      display: none;
     }
 
-    .media-type {
-      font-size: 0.9rem;
+    .tab-btn {
+      flex: 1;
+      min-width: 120px;
+      padding: 16px 20px;
+      background: transparent;
+      border: none;
       color: #888;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+      font-size: 0.95rem;
       font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
     }
 
-    .media-name {
-      font-size: 1.1rem;
-      font-weight: 600;
+    .tab-btn.active {
       color: #fff;
-      margin-top: 4px;
+      border-bottom-color: #fff;
+      background: #111111;
     }
 
-    .sync-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.9rem;
-      color: #0f0;
+    .tab-content {
+      display: none;
+      width: 100%;
+      min-height: 400px;
     }
 
-    .sync-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #0f0;
-      animation: pulse 2s infinite;
+    .tab-content.active {
+      display: block;
     }
 
-    @keyframes pulse {
-
-      0%,
-      100% {
-        opacity: 1;
-      }
-
-      50% {
-        opacity: 0.5;
-      }
-    }
-
+    /* Player Container */
     #player-container {
       position: relative;
       width: 100%;
-      max-width: 100%;
-      margin: 0 auto;
-      border-radius: 16px;
-      overflow: hidden;
-      border: 1px solid #333333;
       background: #000;
+      margin: 0;
+      overflow: hidden;
+      min-height: 400px;
+    }
+
+    /* Fullscreen Button */
+    .fullscreen-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.7);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      transition: all 0.3s;
+      backdrop-filter: blur(10px);
+    }
+
+    .fullscreen-btn:hover {
+      background: rgba(0, 0, 0, 0.9);
+      border-color: #fff;
+      transform: scale(1.1);
+    }
+
+    .fullscreen-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Fullscreen mode */
+    .fullscreen-active {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 9999 !important;
+      background: #000 !important;
+    }
+
+    .fullscreen-active #youtube-player,
+    .fullscreen-active #native-player {
+      width: 100vw !important;
+      height: 100vh !important;
+      max-height: 100vh !important;
+      min-height: 100vh !important;
+    }
+
+    .fullscreen-active .video-wrapper {
+      width: 100vw !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
+    }
+
+    .fullscreen-active .fullscreen-btn {
+      top: 20px !important;
+      right: 20px !important;
     }
 
     #youtube-player {
       width: 100%;
       height: 480px;
+      position: relative;
       background: #000;
+      display: none;
     }
 
     #youtube-player.active {
       display: block !important;
       visibility: visible !important;
-    }
-
-    #local-player,
-    #native-player {
-      width: 100%;
-      height: 480px;
-      background: #000;
-      display: none;
-    }
-
-    #local-player.active,
-    #native-player.active {
-      display: block;
-    }
-
-    #local-audio {
-      width: 100%;
-      height: 60px;
-      display: none;
-    }
-
-    #local-audio.active {
-      display: block;
-    }
-
-    .video-js {
-      width: 100% !important;
       height: 480px !important;
     }
 
-    .video-js .vjs-big-play-button {
-      border-color: #fff;
-      background-color: rgba(255, 255, 255, 0.1);
+    #native-player {
+      width: 100%;
+      height: auto;
+      min-height: 300px;
+      max-height: 80vh;
+      background: #000;
+      display: block;
+      object-fit: contain;
+      position: relative;
+      z-index: 10;
     }
 
-    .video-js .vjs-control-bar {
-      background-color: rgba(0, 0, 0, 0.7);
+    #native-player.active {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      z-index: 10;
+    }
+
+    /* Video wrapper for better control */
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+    }
+
+    .video-wrapper video {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Audio Player - Only Timeline */
+    .audio-container {
+      display: none;
+      padding: 40px 20px;
+      background: #0a0a0a;
+    }
+
+    .audio-container.active {
+      display: block;
+    }
+
+    .audio-info {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .audio-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .audio-subtitle {
+      font-size: 0.9rem;
+      color: #888;
+    }
+
+    .audio-timeline {
+      width: 100%;
+      position: relative;
+    }
+
+    .timeline-track {
+      width: 100%;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .timeline-progress {
+      height: 100%;
+      background: #fff;
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    .timeline-time {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    #local-audio {
+      display: none;
+    }
+
+    /* PDF Viewer Styles */
+    #pdf-player-container {
+      display: none;
+      width: 100%;
+      background: #111;
+      position: relative;
+    }
+
+    #pdf-player-container.active {
+      display: block;
+    }
+
+    .client-pdf-wrapper {
+      width: 100%;
+      min-height: 400px;
+      max-height: 80vh;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      background: #1a1a1a;
+    }
+
+    .client-pdf-canvas-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    #client-pdf-canvas {
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    #client-pdf-draw-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    #client-pdf-laser {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: radial-gradient(circle, rgba(255, 0, 0, 1) 0%, rgba(255, 0, 0, 0.6) 40%, rgba(255, 0, 0, 0) 100%);
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      box-shadow: 0 0 15px 8px rgba(255, 0, 0, 0.4);
+      animation: laser-pulse 0.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes laser-pulse {
+      from {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+
+      to {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0.8;
+      }
+    }
+
+    #client-pdf-laser.active {
+      display: block;
+    }
+
+    .pdf-page-info {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Disable user interaction */
+    #player-container iframe,
+    #player-container video {
+      pointer-events: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     .status {
-      margin: 24px 0;
-      padding: 16px;
-      background: #111111;
-      border-radius: 14px;
-      border: 1px solid #222222;
+      padding: 16px 20px;
+      background: #0a0a0a;
+      border-bottom: 1px solid #222222;
       display: flex;
       justify-content: space-around;
     }
@@ -185,13 +386,13 @@
     }
 
     .status-label {
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       color: #888;
       margin-bottom: 4px;
     }
 
     .status-value {
-      font-size: 1.3rem;
+      font-size: 1.1rem;
       font-weight: 700;
       color: #fff;
     }
@@ -204,21 +405,19 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-size: 1.75rem;
+      font-size: 1.5rem;
       font-weight: 500;
       color: #ffffff;
       cursor: pointer;
       z-index: 2000;
       transition: opacity 0.4s ease;
       user-select: none;
-    }
-
-    #overlay:hover {
-      background: rgba(0, 0, 0, 0.98);
+      padding: 20px;
+      text-align: center;
     }
 
     #overlay .instruction {
-      font-size: 1.1rem;
+      font-size: 1rem;
       margin-top: 16px;
       color: #999999;
       font-weight: 400;
@@ -234,71 +433,568 @@
       text-align: center;
       padding: 60px 20px;
       color: #888;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
     }
 
     .waiting-screen.hidden {
       display: none;
     }
 
-    .waiting-screen.active {
-      display: block;
-    }
-
     .waiting-screen h2 {
-      font-size: 1.5rem;
+      font-size: 1.3rem;
       color: #fff;
       margin-bottom: 12px;
     }
 
     .waiting-screen p {
-      font-size: 1rem;
+      font-size: 0.9rem;
       line-height: 1.6;
     }
 
-    .player-wrapper {
-      margin-top: 0;
-    }
-
-    .player-wrapper.hidden {
-      display: none;
-    }
-
-    .footer {
-      margin-top: 48px;
-      font-size: 0.9rem;
-      color: #555555;
-      font-weight: 500;
-      text-align: center;
-    }
-
+    /* Mobile Responsive */
     @media (max-width: 768px) {
       header h1 {
-        font-size: 2.2rem;
+        font-size: 1.5rem;
       }
 
-      #youtube-player,
-      #local-player,
-      #native-player {
+      header p {
+        font-size: 0.85rem;
+      }
+
+      .tab-btn {
+        padding: 14px 16px;
+        font-size: 0.85rem;
+        min-width: 100px;
+      }
+
+      #player-container {
+        min-height: 300px;
+      }
+
+      #youtube-player {
         height: 56.25vw;
+        min-height: 250px;
       }
 
-      .card {
-        padding: 24px;
+      #youtube-player.active {
+        height: 56.25vw !important;
+        min-height: 250px !important;
+      }
+
+      #native-player {
+        min-height: 56.25vw;
+        max-height: 70vh;
+        width: 100% !important;
+        height: auto;
+        display: block !important;
+      }
+
+      #native-player.active {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        min-height: 56.25vw;
+      }
+
+      #video-player-container {
+        min-height: 56.25vw;
+        width: 100%;
+        display: flex !important;
+      }
+
+      .fullscreen-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+        top: 12px;
+        right: 12px;
+      }
+
+      .video-wrapper {
+        min-height: 56.25vw;
+        width: 100%;
+      }
+
+      .audio-container {
+        padding: 30px 16px;
+      }
+
+      .audio-title {
+        font-size: 1.1rem;
       }
     }
 
     @media (max-width: 480px) {
-      #player-container {
-        border-radius: 12px;
+      header {
+        padding: 16px;
       }
 
-      #overlay {
-        font-size: 1.4rem;
+      header h1 {
+        font-size: 1.3rem;
       }
 
-      .media-info {
+      .tab-btn {
+        padding: 12px 14px;
+        font-size: 0.8rem;
+        min-width: 90px;
+      }
+
+      #native-player {
+        min-height: 56.25vw;
+        max-height: 60vh;
+        width: 100% !important;
+        height: auto;
+        display: block !important;
+      }
+
+      #native-player.active {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+
+      #video-player-container {
+        min-height: 56.25vw;
+        width: 100%;
+      }
+
+      .fullscreen-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+        top: 10px;
+        right: 10px;
+      }
+
+      .status {
+        padding: 12px 16px;
+      }
+
+      .status-label {
+        font-size: 0.7rem;
+      }
+
+      .status-value {
+        font-size: 1rem;
+      }
+    }
+
+    /* Fix for iOS Safari */
+    @supports (-webkit-touch-callout: none) {
+      #native-player {
+        -webkit-playsinline: playsinline;
+      }
+
+      #native-player.active {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+    }
+
+    /* Chat Button - Black & White Theme */
+    .chat-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #000;
+      color: #000;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chat-btn:hover {
+      transform: scale(1.1);
+      background: #000;
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .chat-btn:active {
+      transform: scale(0.95);
+    }
+
+    .chat-btn .unread-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: #ff3b3b;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #000;
+    }
+
+    .chat-btn .unread-badge.show {
+      display: flex;
+    }
+
+    /* Chat Panel */
+    .chat-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1001;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .chat-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .chat-panel {
+      position: fixed;
+      top: 0;
+      right: -400px;
+      width: 380px;
+      height: 100vh;
+      background: #0a0a0a;
+      border-left: 1px solid #333;
+      z-index: 1002;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.3s ease;
+    }
+
+    .chat-panel.show {
+      right: 0;
+    }
+
+    .chat-panel-header {
+      padding: 16px 20px;
+      background: #111;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-panel-header h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chat-panel-header .online-count {
+      font-size: 0.8rem;
+      color: #888;
+      font-weight: 400;
+    }
+
+    .chat-close-btn {
+      background: transparent;
+      border: none;
+
+      color: #888;
+      font-size: 28px;
+      line-height: 1;
+
+      cursor: pointer;
+      padding: 0;
+
+      outline: none;
+      /* 🔴 remove focus ring */
+      box-shadow: none;
+      /* 🔴 remove browser shadow */
+
+      transition: color 0.2s ease;
+    }
+
+    .chat-close-btn:hover,
+    .chat-close-btn:focus,
+    .chat-close-btn:active {
+      background: transparent !important;
+      /* 🔥 force no bg */
+      outline: none;
+      box-shadow: none;
+      color: #fff;
+    }
+
+    /* Mobile / Chrome tap highlight */
+    .chat-close-btn {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 3px;
+    }
+
+    .chat-msg {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+
+    .chat-msg.incoming {
+      align-self: flex-start;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-msg.outgoing {
+      align-self: flex-end;
+      background: #fff;
+      color: #000;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-msg-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      gap: 8px;
+    }
+
+    .chat-msg-sender {
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    .chat-msg.incoming .chat-msg-sender {
+      color: #888;
+    }
+
+    .chat-msg.outgoing .chat-msg-sender {
+      color: #666;
+    }
+
+    .chat-msg-role {
+      font-size: 0.65rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .chat-msg.incoming .chat-msg-role {
+      background: rgba(255, 255, 255, 0.1);
+      color: #888;
+    }
+
+    .chat-msg.outgoing .chat-msg-role {
+      background: rgba(0, 0, 0, 0.1);
+      color: #666;
+    }
+
+    .chat-msg-time {
+      font-size: 0.65rem;
+      opacity: 0.6;
+    }
+
+    .chat-msg-text {
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .chat-input-area {
+      padding: 16px;
+      background: #111;
+      border-top: 1px solid #333;
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 24px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: #fff;
+    }
+
+    .chat-input::placeholder {
+      color: #666;
+    }
+
+    .chat-send-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #fff;
+      border: none;
+      color: #000;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .chat-send-btn:hover {
+      transform: scale(1.05);
+      background: #eee;
+    }
+
+    .chat-empty {
+      text-align: center;
+      color: #666;
+      padding: 40px 20px;
+    }
+
+    .chat-empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .chat-system-msg {
+      text-align: center;
+      color: #666;
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      align-self: center;
+    }
+
+    @media (max-width: 768px) {
+      .chat-btn {
+        width: 52px;
+        height: 52px;
+        bottom: 20px;
+        right: 20px;
+        z-index: 999;
+      }
+
+      /* Full-screen chat panel on mobile */
+      .chat-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        border-left: none;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 2000;
+        display: flex;
         flex-direction: column;
-        gap: 12px;
+      }
+
+      .chat-panel.show {
+        transform: translateX(0);
+        right: 0;
+      }
+
+      /* Hide overlay on mobile since panel is full screen */
+      .chat-overlay {
+        display: none !important;
+      }
+
+      .chat-panel-header {
+        flex-shrink: 0;
+        padding: 16px 20px;
+        padding-top: calc(16px + env(safe-area-inset-top, 0px));
+      }
+
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        padding-bottom: 16px;
+        min-height: 0;
+      }
+
+      .chat-input-area {
+        flex-shrink: 0;
+        position: relative;
+        padding: 12px 16px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        background: #111;
+        border-top: 1px solid #333;
+      }
+
+      .chat-input {
+        padding: 12px 16px;
+        font-size: 16px;
+        /* Prevents zoom on iOS */
+        flex: 1;
+      }
+
+      .chat-send-btn {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        flex-shrink: 0;
+      }
+
+      /* Hide chat button when chat is open */
+      body.chat-active .chat-btn {
+        display: none;
+      }
+
+      /* Hide main content when chat is active on mobile to strictly separate them */
+      body.chat-active .container {
+        display: none;
+      }
+
+      /* Ensure body doesn't scroll when chat is open */
+      body.chat-active {
+        overflow: hidden;
       }
     }
   </style>
@@ -306,127 +1002,400 @@
 
 <body>
   <div id="overlay">
-    <div>Click to Enable Playback</div>
-    <div class="instruction">Required for synchronized audio and controls</div>
+    <div>Tap to Enable Playback</div>
+    <div class="instruction">Required for synchronized media</div>
   </div>
 
   <div class="container">
     <header>
       <h1>Media Sync Client</h1>
-      <p>Real-time synchronized media playback</p>
+      <p>Real-time synchronized playback</p>
     </header>
 
-    <div class="card">
-      <div class="status">
-        <div class="status-item">
-          <div class="status-label">Connected Clients</div>
-          <div class="status-value" id="count">0</div>
-        </div>
-        <div class="status-item">
-          <div class="status-label">Connection</div>
-          <div class="status-value" style="color: #0f0;">●</div>
-        </div>
+    <div class="status">
+      <div class="status-item">
+        <div class="status-label">Clients</div>
+        <div class="status-value" id="count">0</div>
       </div>
+      <div class="status-item">
+        <div class="status-label">Status</div>
+        <div class="status-value" style="color: #0f0;">●</div>
+      </div>
+    </div>
 
-      <div class="media-info" id="mediaInfo" style="display: none;">
-        <div>
-          <div class="media-type" id="mediaType">YouTube Video</div>
-          <div class="media-name" id="mediaName">No media loaded</div>
-        </div>
-        <div class="sync-indicator">
-          <div class="sync-dot"></div>
-          <span>Synced</span>
-        </div>
-      </div>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('youtube', this)">YouTube</button>
+      <button class="tab-btn" onclick="switchTab('video', this)">Video</button>
+      <button class="tab-btn" onclick="switchTab('audio', this)">Audio</button>
+      <button class="tab-btn" onclick="switchTab('pdf', this)">PDF</button>
+    </div>
 
-      <div class="waiting-screen active" id="waitingScreen">
-        <h2>Waiting for Media</h2>
-        <p>Controller will load media soon...</p>
+    <!-- YouTube Tab -->
+    <div id="youtube-tab" class="tab-content active">
+      <div id="youtube-player-container" class="video-wrapper">
+        <div id="youtube-player"></div>
+        <button class="fullscreen-btn" id="youtube-fullscreen-btn" onclick="toggleFullscreen('youtube')"
+          title="Fullscreen">
+          <span id="youtube-fs-icon">⛶</span>
+        </button>
       </div>
+    </div>
 
-      <div class="player-wrapper" id="playerWrapper">
-        <div id="player-container">
-          <div id="youtube-player"></div>
-          <video id="local-player" class="video-js vjs-big-play-centered" controls preload="auto" playsinline>
-            <p class="vjs-no-js">To view this video please enable JavaScript</p>
-          </video>
-          <video id="native-player" controls playsinline></video>
-          <audio id="local-audio" controls></audio>
+    <!-- Local Video Tab -->
+    <div id="video-tab" class="tab-content">
+      <div id="video-player-container" class="video-wrapper" style="z-index: 10;">
+        <video id="native-player" preload="auto" playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5"
+          muted controls></video>
+        <button class="fullscreen-btn" id="video-fullscreen-btn" onclick="toggleFullscreen('video')" title="Fullscreen">
+          <span id="video-fs-icon">⛶</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Local Audio Tab -->
+    <div id="audio-tab" class="tab-content">
+      <div class="audio-container" id="audioContainer">
+        <div class="audio-info">
+          <div class="audio-title" id="audioTitle">No audio loaded</div>
+          <div class="audio-subtitle" id="audioSubtitle">Waiting for controller...</div>
+        </div>
+        <div class="audio-timeline">
+          <div class="timeline-track" id="timelineTrack">
+            <div class="timeline-progress" id="timelineProgress"></div>
+          </div>
+          <div class="timeline-time">
+            <span id="currentTime">0:00</span>
+            <span id="totalTime">0:00</span>
+          </div>
         </div>
       </div>
+      <audio id="local-audio" preload="auto" playsinline webkit-playsinline controls></audio>
+    </div>
+
+    <!-- PDF Tab -->
+    <div id="pdf-tab" class="tab-content">
+      <div id="pdf-player-container">
+        <div class="client-pdf-wrapper">
+          <div class="client-pdf-canvas-container">
+            <canvas id="client-pdf-canvas"></canvas>
+            <canvas id="client-pdf-draw-canvas"></canvas>
+            <div id="client-pdf-laser"></div>
+          </div>
+        </div>
+        <div class="pdf-page-info">
+          Page <span id="client-pdf-page">1</span> / <span id="client-pdf-total">1</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="waiting-screen active" id="waitingScreen">
+      <h2>Waiting for Media</h2>
+      <p>Controller will load media soon...</p>
     </div>
   </div>
 
   <script>
+    // Always prompt for client name on each session
+    let clientName = prompt('Enter your name for Media Sync:', 'Client');
+    if (!clientName || clientName.trim() === '') {
+      clientName = 'Client_' + Math.random().toString(36).substring(2, 8);
+    }
+
     const socket = io();
-    socket.emit("identify", { role: "client" });
+    let isApproved = false;
+
+    socket.emit("identify", { role: "client", name: clientName });
+
+    // Permission states
+    socket.on("waiting_for_permission", (data) => {
+      console.log("[Client] Waiting for controller permission...");
+      showPermissionOverlay("waiting", `"${clientName}" wants to join`, "Waiting for controller permission...");
+    });
+
+    socket.on("permission_granted", (data) => {
+      console.log("[Client] Permission granted!");
+      isApproved = true;
+      hidePermissionOverlay();
+      // Show the normal overlay if needed
+      overlay.style.display = "flex";
+      overlay.classList.remove("hidden");
+    });
+
+    socket.on("permission_denied", (data) => {
+      console.log("[Client] Permission denied");
+      showPermissionOverlay("denied", "Access Denied", data.message || "Please take permission of Controller");
+    });
+
+    // Permission overlay functions
+    function showPermissionOverlay(type, title, message) {
+      let permissionOverlay = document.getElementById('permissionOverlay');
+      if (!permissionOverlay) {
+        permissionOverlay = document.createElement('div');
+        permissionOverlay.id = 'permissionOverlay';
+        permissionOverlay.style.cssText = `
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.98);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          z-index: 3000;
+          padding: 20px;
+          text-align: center;
+        `;
+        document.body.appendChild(permissionOverlay);
+      }
+
+      const iconSVG = type === 'waiting'
+        ? `<svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" style="animation: spin 2s linear infinite;">
+            <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-6.07l-1.41 1.41m-9.32 9.32l-1.41 1.41m12.14 0l1.41 1.41M4.93 6.93l1.41 1.41"/>
+           </svg>
+           <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>`
+        : `<svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#ff4444" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M15 9l-6 6m0-6l6 6"/>
+           </svg>`;
+
+      permissionOverlay.innerHTML = `
+        <div style="margin-bottom: 24px;">${iconSVG}</div>
+        <h2 style="color: #fff; font-size: 1.8rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
+        <p style="color: ${type === 'waiting' ? '#aaa' : '#ff6666'}; font-size: 1.1rem; max-width: 400px;">${message}</p>
+        ${type === 'denied' ? `
+          <button onclick="window.location.reload()" style="
+            margin-top: 30px;
+            padding: 14px 32px;
+            background: #fff;
+            color: #000;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+          ">Try Again</button>
+        ` : ''}
+      `;
+
+      permissionOverlay.style.display = 'flex';
+      overlay.style.display = 'none';
+    }
+
+    function hidePermissionOverlay() {
+      const permissionOverlay = document.getElementById('permissionOverlay');
+      if (permissionOverlay) {
+        permissionOverlay.style.display = 'none';
+      }
+    }
+
+    // Handle being kicked by controller
+    socket.on("kicked", (data) => {
+      alert(data.message || "You have been removed from the session");
+      window.location.reload();
+    });
 
     let player;
     let playerReady = false;
     let autoplayEnabled = false;
     let queuedCommands = [];
     let currentMediaType = null;
-    let videoJsPlayer = null;
-    let useNativePlayer = false;
+    let currentTab = 'youtube';
+    let audioUpdateInterval = null;
 
     const overlay = document.getElementById("overlay");
     const waitingScreen = document.getElementById("waitingScreen");
-    const playerWrapper = document.getElementById("playerWrapper");
-    const mediaInfo = document.getElementById("mediaInfo");
-    const localPlayer = document.getElementById("local-player");
     const nativePlayer = document.getElementById("native-player");
     const localAudio = document.getElementById("local-audio");
     const youtubePlayerDiv = document.getElementById("youtube-player");
+    const audioContainer = document.getElementById("audioContainer");
+    const timelineProgress = document.getElementById("timelineProgress");
+    const currentTimeEl = document.getElementById("currentTime");
+    const totalTimeEl = document.getElementById("totalTime");
+    const timelineTrack = document.getElementById("timelineTrack");
+    let isFullscreen = { youtube: false, video: false };
+
+    // Helper: Convert relative URL to absolute URL for mobile access
+    function toAbsoluteUrl(url) {
+      if (!url) return url;
+      // Already absolute
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+      // Relative URL - convert to absolute
+      return window.location.origin + (url.startsWith('/') ? '' : '/') + url;
+    }
+
+    // Ensure YouTube player div exists and is visible
+    if (youtubePlayerDiv) {
+      youtubePlayerDiv.style.display = 'none';
+    }
+
+    // Fullscreen toggle function (global)
+    window.toggleFullscreen = function (type) {
+      const container = type === 'youtube'
+        ? document.getElementById('youtube-player-container')
+        : document.getElementById('video-player-container');
+      const icon = type === 'youtube'
+        ? document.getElementById('youtube-fs-icon')
+        : document.getElementById('video-fs-icon');
+
+      if (!container) return;
+
+      if (isFullscreen[type]) {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+        container.classList.remove('fullscreen-active');
+        icon.textContent = '⛶';
+        isFullscreen[type] = false;
+      } else {
+        // Enter fullscreen
+        if (container.requestFullscreen) {
+          container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        } else if (container.mozRequestFullScreen) {
+          container.mozRequestFullScreen();
+        } else if (container.msRequestFullscreen) {
+          container.msRequestFullscreen();
+        }
+        container.classList.add('fullscreen-active');
+        icon.textContent = '⛶';
+        isFullscreen[type] = true;
+      }
+    }
+
+    // Listen for fullscreen changes
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    function handleFullscreenChange() {
+      const isFullscreenMode = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+        document.mozFullScreenElement || document.msFullscreenElement);
+
+      if (!isFullscreenMode) {
+        // Exited fullscreen
+        document.getElementById('youtube-player-container')?.classList.remove('fullscreen-active');
+        document.getElementById('video-player-container')?.classList.remove('fullscreen-active');
+        document.getElementById('youtube-fs-icon').textContent = '⛶';
+        document.getElementById('video-fs-icon').textContent = '⛶';
+        isFullscreen.youtube = false;
+        isFullscreen.video = false;
+      }
+    }
+
+    // Tab switching
+    function switchTab(tab, clickedElement) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      if (clickedElement) {
+        clickedElement.classList.add('active');
+      } else {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${tab}'`)) {
+            btn.classList.add('active');
+          }
+        });
+      }
+      document.getElementById(`${tab}-tab`).classList.add('active');
+
+      // Show/hide waiting screen based on media type
+      if (currentMediaType) {
+        waitingScreen.classList.add('hidden');
+        waitingScreen.classList.remove('active');
+      }
+    }
+
+    // Format time
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Update audio timeline
+    function updateAudioTimeline() {
+      if (currentMediaType === 'local_audio' && localAudio.src) {
+        const current = localAudio.currentTime || 0;
+        const duration = localAudio.duration || 0;
+
+        if (duration > 0) {
+          const percent = (current / duration) * 100;
+          timelineProgress.style.width = percent + '%';
+          currentTimeEl.textContent = formatTime(current);
+          totalTimeEl.textContent = formatTime(duration);
+        }
+      }
+    }
+
+    // Start audio timeline updates
+    function startAudioUpdates() {
+      if (audioUpdateInterval) clearInterval(audioUpdateInterval);
+      audioUpdateInterval = setInterval(updateAudioTimeline, 100);
+    }
+
+    // Stop audio timeline updates
+    function stopAudioUpdates() {
+      if (audioUpdateInterval) {
+        clearInterval(audioUpdateInterval);
+        audioUpdateInterval = null;
+      }
+    }
 
     // Overlay click handler
-    overlay.addEventListener("click", () => {
+    overlay.addEventListener("click", async () => {
       autoplayEnabled = true;
       overlay.classList.add("hidden");
       setTimeout(() => { overlay.style.display = "none"; }, 400);
       console.log("[Client] Autoplay enabled");
 
-      // Execute queued commands
       if (queuedCommands.length > 0) {
         console.log(`[Client] Processing ${queuedCommands.length} queued commands`);
         queuedCommands.forEach(cmd => handleCommand(cmd));
         queuedCommands = [];
       }
 
-      // Unmute and test player if ready
       if (player && playerReady) {
         player.unMute();
+      }
+
+      if (currentMediaType) {
+        try {
+          if (currentMediaType === 'local_video' && nativePlayer.src) {
+            nativePlayer.muted = false;
+            await nativePlayer.play().catch(e => console.log("[Client] Mobile video play failed:", e));
+          } else if (currentMediaType === 'local_audio' && localAudio.src) {
+            await localAudio.play().catch(e => console.log("[Client] Mobile audio play failed:", e));
+          } else {
+            playMedia();
+          }
+        } catch (e) {
+          console.log("[Client] Initial mobile play failed:", e);
+        }
       }
     });
 
     // YouTube API Ready
     function onYouTubeIframeAPIReady() {
       console.log("[Client] YouTube API loading...");
-      player = new YT.Player("youtube-player", {
-        height: "480",
-        width: "100%",
-        videoId: "",
-        playerVars: {
-          autoplay: 0,
-          controls: 1,
-          rel: 0,
-          modestbranding: 1,
-          fs: 1,
-          iv_load_policy: 3,
-          playsinline: 1
-        },
-        events: {
-          onReady: onPlayerReady,
-          onStateChange: onPlayerStateChange,
-          onError: onPlayerError
-        }
-      });
+      // Don't create player until we have a video to load
+      playerReady = false;
     }
 
     function onPlayerReady(event) {
       playerReady = true;
       console.log("[Client] YouTube Player ready");
-
-      // Process queued commands
       if (queuedCommands.length > 0) {
         queuedCommands.forEach(cmd => handleCommand(cmd));
         queuedCommands = [];
@@ -434,15 +1403,7 @@
     }
 
     function onPlayerStateChange(event) {
-      const states = {
-        '-1': 'UNSTARTED',
-        '0': 'ENDED',
-        '1': 'PLAYING',
-        '2': 'PAUSED',
-        '3': 'BUFFERING',
-        '5': 'CUED'
-      };
-      console.log("[Client] Player state:", states[event.data] || event.data);
+      console.log("[Client] Player state:", event.data);
     }
 
     function onPlayerError(event) {
@@ -454,17 +1415,55 @@
       document.getElementById("count").textContent = data.clients;
     });
 
+    // Track current media identifiers for smart sync
+    let currentVideoId = null;
+    let currentFileUrl = null;
+
     socket.on("current_state", (state) => {
       console.log("[Client] Received current state:", state);
       if (state.mediaType) {
-        handleCommand({
-          type: "load",
-          mediaType: state.mediaType,
-          videoId: state.videoId,
-          fileUrl: state.fileUrl,
-          fileName: state.fileName,
-          time: state.time
-        });
+        // Check if the same media is already loaded - if so, just sync time and play state
+        const sameMedia = (
+          (state.mediaType === 'youtube' && currentMediaType === 'youtube' && state.videoId === currentVideoId) ||
+          (state.mediaType === 'local_video' && currentMediaType === 'local_video' && state.fileUrl === currentFileUrl) ||
+          (state.mediaType === 'local_audio' && currentMediaType === 'local_audio' && state.fileUrl === currentFileUrl) ||
+          (state.mediaType === 'pdf' && currentMediaType === 'pdf' && state.fileUrl === currentFileUrl)
+        );
+
+        if (sameMedia && autoplayEnabled) {
+          // Same media - just sync time and play/pause state without reloading
+          console.log("[Client] Same media detected - syncing time and state without reload");
+          if (state.mediaType === 'pdf') {
+            // For PDF, sync page and zoom
+            if (state.pdfPage && clientPdfDoc) {
+              clientPdfCurrentPage = state.pdfPage;
+              clientRenderPdfPage(clientPdfCurrentPage);
+            }
+            if (state.pdfZoom && clientPdfDoc) {
+              clientPdfZoom = state.pdfZoom;
+              clientRenderPdfPage(clientPdfCurrentPage);
+            }
+          } else {
+            seekMedia(state.time || 0);
+            if (state.isPlaying) {
+              playMedia();
+            } else {
+              pauseMedia();
+            }
+          }
+        } else {
+          // Different media - full load (loadMedia will update tracking variables)
+          handleCommand({
+            type: "load",
+            mediaType: state.mediaType,
+            videoId: state.videoId,
+            fileUrl: state.fileUrl,
+            fileName: state.fileName,
+            time: state.time,
+            pdfPage: state.pdfPage,
+            pdfZoom: state.pdfZoom
+          });
+        }
       }
     });
 
@@ -511,237 +1510,290 @@
     }
 
     // Hide all players
-    // Hide all players AND fully stop/clear any HTML5/video.js sources
     function hideAllPlayers() {
-      // Remove visible classes
-      youtubePlayerDiv.classList.remove('active');
-      localPlayer.classList.remove('active');
-      nativePlayer.classList.remove('active');
-      localAudio.classList.remove('active');
-
-      // Pause and clear native player
-      try {
-        nativePlayer.pause();
-        nativePlayer.removeAttribute('src');
-        nativePlayer.load(); // unloads the media
-        nativePlayer.currentTime = 0;
-      } catch (e) { /* ignore */ }
-
-      // Pause and clear video.js player
-      try {
-        if (videoJsPlayer) {
-          videoJsPlayer.pause();
-          // attempt to clear source
-          try { videoJsPlayer.src({ src: '', type: '' }); } catch (e) { }
-          // dispose it so it doesn't keep any event handlers or take audio focus
-          videoJsPlayer.dispose();
-          videoJsPlayer = null;
-        } else {
-          // if native <video> is used as localPlayer
-          localPlayer.pause();
-          localPlayer.removeAttribute('src');
-          localPlayer.load();
-          localPlayer.currentTime = 0;
+      // STOP YouTube player completely before hiding
+      if (player && playerReady) {
+        try {
+          player.stopVideo();
+          player.destroy();
+        } catch (e) {
+          console.log('[Client] Error stopping YouTube player:', e);
         }
-      } catch (e) {
-        console.warn('Error clearing videojs/native player', e);
+        player = null;
+        playerReady = false;
       }
 
-      // Pause and clear audio
-      try {
-        localAudio.pause();
-        localAudio.removeAttribute('src');
-        localAudio.load();
-        localAudio.currentTime = 0;
-      } catch (e) { /* ignore */ }
+      youtubePlayerDiv.classList.remove('active');
+      youtubePlayerDiv.style.display = 'none';
+      // Clear the YouTube div content so a new player can be created
+      youtubePlayerDiv.innerHTML = '';
+
+      const videoContainer = document.getElementById('video-player-container');
+      if (videoContainer) {
+        videoContainer.style.display = 'none';
+      }
+
+      // Get video element by ID since it may be recreated dynamically
+      const videoPlayer = document.getElementById('native-player');
+      if (videoPlayer) {
+        videoPlayer.classList.remove('active');
+        videoPlayer.style.display = 'none';
+        videoPlayer.style.visibility = 'hidden';
+        videoPlayer.style.opacity = '0';
+        videoPlayer.pause();
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
+      }
+
+      audioContainer.classList.remove('active');
+      localAudio.classList.remove('active');
+      localAudio.pause();
+      localAudio.src = '';
+      stopAudioUpdates();
+
+      // Hide PDF container and clear any PDF state
+      const pdfContainer = document.getElementById('pdf-player-container');
+      if (pdfContainer) {
+        pdfContainer.classList.remove('active');
+      }
+      // Clear PDF draw canvas
+      if (clientPdfDrawCtx && clientPdfDrawCanvas) {
+        clientPdfDrawCtx.clearRect(0, 0, clientPdfDrawCanvas.width, clientPdfDrawCanvas.height);
+      }
     }
 
     // Load Media
     function loadMedia(data) {
       console.log("[Client] Loading media:", data);
       currentMediaType = data.mediaType;
-
+      // Update tracking variables for smart sync
+      currentVideoId = data.videoId || null;
+      currentFileUrl = data.fileUrl || null;
       hideAllPlayers();
-
-      // Always show player wrapper and hide waiting screen
       waitingScreen.classList.add('hidden');
       waitingScreen.classList.remove('active');
-      playerWrapper.classList.remove('hidden');
-      mediaInfo.style.display = 'flex';
 
-      const typeLabels = {
-        'youtube': 'YouTube Video',
-        'local_video': 'Local Video',
-        'local_audio': 'Local Audio'
-      };
-      document.getElementById('mediaType').textContent = typeLabels[data.mediaType] || 'Media';
+      // Switch to appropriate tab
+      if (data.mediaType === 'youtube') {
+        const btn = document.querySelector('.tab-btn[onclick*="youtube"]');
+        if (btn) switchTab('youtube', btn);
+        // Ensure player container is visible
+        const container = document.querySelector('#youtube-tab #player-container');
+        if (container) container.style.display = 'block';
+      } else if (data.mediaType === 'local_video') {
+        const btn = document.querySelector('.tab-btn[onclick*="video"]');
+        if (btn) switchTab('video', btn);
+        // Ensure video container is visible
+        const container = document.getElementById('video-player-container');
+        if (container) {
+          container.style.display = 'flex';
+          container.style.visibility = 'visible';
+        }
+      } else if (data.mediaType === 'local_audio') {
+        const btn = document.querySelector('.tab-btn[onclick*="audio"]');
+        if (btn) switchTab('audio', btn);
+      }
 
       if (data.mediaType === 'youtube') {
-        document.getElementById('mediaName').textContent = `Video ID: ${data.videoId}`;
+        // Ensure YouTube tab is visible
+        youtubePlayerDiv.style.display = 'block';
         youtubePlayerDiv.classList.add('active');
 
-        // Destroy OLD player (IMPORTANT)
+        // Get proper height for YouTube player
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const playerHeight = isMobile ? Math.max(250, window.innerWidth * 0.5625) : 480;
+
         try {
           if (player && typeof player.destroy === "function") {
             console.log("[Client] Destroying old YouTube player...");
             player.destroy();
+            player = null;
+            playerReady = false;
           }
-        } catch (e) { console.warn("YT destroy error:", e); }
+        } catch (e) {
+          console.warn("YT destroy error:", e);
+          player = null;
+          playerReady = false;
+        }
 
-        // Re-create a brand new YouTube player (this makes autoplay WORK)
-        console.log("[Client] Creating NEW YouTube player...");
+        // Restore the inner div for YouTube player (YouTube API replaces it with iframe)
+        youtubePlayerDiv.innerHTML = '<div id=\"youtube-player\"></div>';
+
+        console.log("[Client] Creating NEW YouTube player with height:", playerHeight);
         player = new YT.Player("youtube-player", {
-          height: "480",
+          height: playerHeight.toString(),
           width: "100%",
           videoId: data.videoId,
           playerVars: {
             autoplay: autoplayEnabled ? 1 : 0,
-            controls: 1,
+            controls: 0,
             playsinline: 1,
             rel: 0,
-            modestbranding: 1
+            modestbranding: 1,
+            fs: 0,
+            disablekb: 1
           },
           events: {
             onReady: (ev) => {
               playerReady = true;
-
-              // ensure correct time
+              console.log("[Client] YouTube player ready");
               if (data.time) {
                 ev.target.seekTo(data.time, true);
               }
-
-              // force unmute + play
               setTimeout(() => {
                 try { ev.target.unMute(); } catch { }
-                try { ev.target.playVideo(); } catch { }
+                if (autoplayEnabled) {
+                  try { ev.target.playVideo(); } catch { }
+                }
               }, 200);
             },
             onError: onPlayerError
           }
         });
-
         return;
       }
 
       else if (data.mediaType === 'local_video') {
-        document.getElementById('mediaName').textContent = data.fileName || 'Local Video';
+        console.log('[Client] Loading local video:', data.fileUrl);
 
-        const fileExt = (data.fileName || data.fileUrl).split('.').pop().toLowerCase();
+        // Get the video element
+        const videoPlayer = document.getElementById('native-player');
+        if (!videoPlayer) {
+          console.error('[Client] Video player element not found');
+          return;
+        }
 
-        if (fileExt === 'mp4' || fileExt === 'webm') {
-          useNativePlayer = true;
-          nativePlayer.classList.add('active');
+        // Get the video container and ensure it's visible
+        const videoContainer = document.getElementById('video-player-container');
+        if (videoContainer) {
+          videoContainer.style.display = 'flex';
+          videoContainer.style.visibility = 'visible';
+        }
 
-          if (videoJsPlayer) {
-            try {
-              videoJsPlayer.dispose();
-              videoJsPlayer = null;
-            } catch (e) {
-              console.log('Video.js dispose error:', e);
-            }
+        // Make video element visible
+        videoPlayer.style.display = 'block';
+        videoPlayer.style.visibility = 'visible';
+        videoPlayer.style.opacity = '1';
+        videoPlayer.classList.add('active');
+
+        // OLD WORKING LOGIC - Simple approach
+        videoPlayer.pause();
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
+
+        videoPlayer.src = data.fileUrl;  // Use the URL directly as received
+        videoPlayer.currentTime = data.time || 0;
+        videoPlayer.muted = true;  // REQUIRED for mobile autoplay
+        videoPlayer.load();
+
+        // Try autoplay (works only if muted on mobile)
+        videoPlayer.play().catch(() => {
+          console.log('[Client] Autoplay blocked – waiting for user tap');
+        });
+
+        // Update global reference
+        window.nativePlayer = videoPlayer;
+      }
+
+      else if (data.mediaType === 'local_audio') {
+        // Convert to absolute URL for mobile access
+        const absoluteUrl = toAbsoluteUrl(data.fileUrl);
+        console.log('[Client] Loading audio from:', absoluteUrl);
+
+        document.getElementById("audioTitle").textContent = data.fileName || 'Local Audio';
+        document.getElementById("audioSubtitle").textContent = 'Playing...';
+        audioContainer.classList.add('active');
+        localAudio.classList.add('active');
+
+        const onCanPlay = () => {
+          localAudio.removeEventListener('canplay', onCanPlay);
+          localAudio.removeEventListener('loadeddata', onCanPlay);
+
+          if (data.time) {
+            localAudio.currentTime = data.time;
           }
 
-          nativePlayer.src = data.fileUrl;
-          nativePlayer.currentTime = data.time || 0;
-          nativePlayer.load();
+          startAudioUpdates();
 
           if (autoplayEnabled) {
-            setTimeout(() => {
-              nativePlayer.play().catch(e => console.log('Autoplay prevented:', e));
-            }, 100);
-          }
-        } else {
-          useNativePlayer = false;
-          localPlayer.classList.add('active');
-
-          if (videoJsPlayer) {
-            try {
-              videoJsPlayer.dispose();
-            } catch (e) {
-              console.log('Video.js dispose error:', e);
+            const playPromise = localAudio.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(e => {
+                console.log('[Client] Audio autoplay prevented:', e);
+              });
             }
           }
+        };
 
-          try {
-            videoJsPlayer = videojs('local-player', {
-              controls: true,
-              autoplay: false,
-              preload: 'auto',
-              fluid: false,
-              responsive: false,
-              html5: {
-                vhs: { overrideNative: true },
-                nativeVideoTracks: false,
-                nativeAudioTracks: false,
-                nativeTextTracks: false
-              }
-            });
+        localAudio.addEventListener('canplay', onCanPlay);
+        localAudio.addEventListener('loadeddata', onCanPlay);
 
-            videoJsPlayer.src({
-              src: data.fileUrl,
-              type: detectMimeType(data.fileUrl, data.fileName)
-            });
-
-            videoJsPlayer.currentTime(data.time || 0);
-
-            if (autoplayEnabled) {
-              setTimeout(() => {
-                videoJsPlayer.play().catch(e => console.log('Autoplay prevented:', e));
-              }, 100);
-            }
-          } catch (e) {
-            console.error('Video.js initialization error:', e);
-            useNativePlayer = true;
-            localPlayer.classList.remove('active');
-            nativePlayer.classList.add('active');
-            nativePlayer.src = data.fileUrl;
-            nativePlayer.currentTime = data.time || 0;
-            nativePlayer.load();
-          }
-        }
-      }
-      else if (data.mediaType === 'local_audio') {
-        localAudio.classList.add('active');
-        document.getElementById('mediaName').textContent = data.fileName || 'Local Audio';
-
-        localAudio.src = data.fileUrl;
-        localAudio.currentTime = data.time || 0;
+        localAudio.src = absoluteUrl;
         localAudio.load();
+      }
 
-        if (autoplayEnabled) {
-          localAudio.play().catch(e => console.log('Autoplay prevented:', e));
+      else if (data.mediaType === 'pdf') {
+        console.log('[Client] Loading PDF:', data.fileUrl);
+
+        // Switch to PDF tab
+        const btn = document.querySelector('.tab-btn[onclick*="pdf"]');
+        if (btn) switchTab('pdf', btn);
+
+        // Show PDF container
+        const pdfContainer = document.getElementById('pdf-player-container');
+        if (pdfContainer) {
+          pdfContainer.classList.add('active');
         }
+
+        // Load the PDF
+        clientLoadPdf(data.fileUrl, data.pdfPage || 1, data.pdfZoom || 1);
       }
     }
 
     // Playback Controls
     function playMedia() {
       console.log("[Client] Play command for:", currentMediaType);
-      if (currentMediaType === 'youtube' && playerReady) {
-        player.playVideo();
+      if (currentMediaType === 'youtube' && playerReady && player) {
+        try {
+          player.playVideo();
+        } catch (e) {
+          console.error('[Client] YouTube play error:', e);
+        }
       } else if (currentMediaType === 'local_video') {
-        if (useNativePlayer) {
-          nativePlayer.play().catch(e => console.log('Play error:', e));
-        } else if (videoJsPlayer) {
-          videoJsPlayer.play().catch(e => console.log('Play error:', e));
+        const videoPlayer = document.getElementById('native-player');
+        if (videoPlayer) {
+          videoPlayer.play().catch(e => console.log('[Client] Play blocked:', e));
         }
       } else if (currentMediaType === 'local_audio') {
-        localAudio.play().catch(e => console.log('Play error:', e));
+        startAudioUpdates();
+        const playPromise = localAudio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => {
+            console.log('[Client] Audio play error:', e);
+            setTimeout(() => {
+              localAudio.play().catch(e2 => console.log('[Client] Audio play retry failed:', e2));
+            }, 100);
+          });
+        }
       }
     }
 
     function pauseMedia() {
       console.log("[Client] Pause command for:", currentMediaType);
-      if (currentMediaType === 'youtube' && playerReady) {
-        player.pauseVideo();
+      if (currentMediaType === 'youtube' && playerReady && player) {
+        try {
+          player.pauseVideo();
+        } catch (e) {
+          console.error('[Client] YouTube pause error:', e);
+        }
       } else if (currentMediaType === 'local_video') {
-        if (useNativePlayer) {
-          nativePlayer.pause();
-        } else if (videoJsPlayer) {
-          videoJsPlayer.pause();
+        const videoPlayer = document.getElementById('native-player');
+        if (videoPlayer) {
+          videoPlayer.pause();
         }
       } else if (currentMediaType === 'local_audio') {
         localAudio.pause();
+        stopAudioUpdates();
       }
     }
 
@@ -750,13 +1802,13 @@
       if (currentMediaType === 'youtube' && playerReady) {
         player.seekTo(time, true);
       } else if (currentMediaType === 'local_video') {
-        if (useNativePlayer) {
-          nativePlayer.currentTime = time;
-        } else if (videoJsPlayer) {
-          videoJsPlayer.currentTime(time);
+        const videoPlayer = document.getElementById('native-player');
+        if (videoPlayer) {
+          videoPlayer.currentTime = time;
         }
       } else if (currentMediaType === 'local_audio') {
         localAudio.currentTime = time;
+        updateAudioTimeline();
       }
     }
 
@@ -766,43 +1818,25 @@
       if (currentMediaType === 'youtube' && playerReady) {
         player.stopVideo();
       } else if (currentMediaType === 'local_video') {
-        if (useNativePlayer) {
-          nativePlayer.pause();
-          nativePlayer.src = '';
-        } else if (videoJsPlayer) {
-          videoJsPlayer.pause();
-          videoJsPlayer.src('');
+        const videoPlayer = document.getElementById('native-player');
+        if (videoPlayer) {
+          videoPlayer.pause();
+          videoPlayer.removeAttribute('src');
+          videoPlayer.load();
         }
       } else if (currentMediaType === 'local_audio') {
         localAudio.pause();
         localAudio.src = '';
+        stopAudioUpdates();
+        timelineProgress.style.width = '0%';
+        currentTimeEl.textContent = '0:00';
+        totalTimeEl.textContent = '0:00';
       }
 
       hideAllPlayers();
-      playerWrapper.classList.add('hidden');
-      mediaInfo.style.display = 'none';
-
-      setTimeout(() => {
-        waitingScreen.classList.add('active');
-      }, 100);
-
+      waitingScreen.classList.add('active');
+      waitingScreen.classList.remove('hidden');
       currentMediaType = null;
-    }
-
-    function detectMimeType(url, fileName) {
-      const ext = (fileName || url).split('.').pop().toLowerCase();
-      const mimeTypes = {
-        'mp4': 'video/mp4',
-        'webm': 'video/webm',
-        'ogg': 'video/ogg',
-        'mkv': 'video/x-matroska',
-        'avi': 'video/x-msvideo',
-        'mov': 'video/quicktime',
-        'flv': 'video/x-flv',
-        'wmv': 'video/x-ms-wmv',
-        'm4v': 'video/x-m4v'
-      };
-      return mimeTypes[ext] || 'video/mp4';
     }
 
     // Heartbeat
@@ -811,7 +1845,386 @@
     }, 30000);
 
     console.log("[Client] Multi-Media Sync Client initialized");
+
+    // ============================================
+    // PDF VIEWER CLIENT FUNCTIONALITY
+    // ============================================
+
+    // Initialize PDF.js worker
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // Client PDF State
+    let clientPdfDoc = null;
+    let clientPdfCurrentPage = 1;
+    let clientPdfTotalPages = 0;
+    let clientPdfZoom = 1;
+
+    // Client PDF DOM elements
+    const clientPdfCanvas = document.getElementById('client-pdf-canvas');
+    const clientPdfDrawCanvas = document.getElementById('client-pdf-draw-canvas');
+    const clientPdfLaser = document.getElementById('client-pdf-laser');
+    const clientPdfCtx = clientPdfCanvas ? clientPdfCanvas.getContext('2d') : null;
+    const clientPdfDrawCtx = clientPdfDrawCanvas ? clientPdfDrawCanvas.getContext('2d') : null;
+
+    // Load PDF on client
+    async function clientLoadPdf(url, page = 1, zoom = 1) {
+      if (!pdfjsLib) {
+        console.error('[Client PDF] PDF.js library not loaded');
+        return;
+      }
+
+      try {
+        console.log('[Client PDF] Loading PDF:', url);
+        
+        // Clear any previous annotations when loading a new PDF
+        if (clientPdfDrawCtx) {
+          clientPdfDrawCtx.clearRect(0, 0, clientPdfDrawCanvas.width, clientPdfDrawCanvas.height);
+        }
+        
+        const loadingTask = pdfjsLib.getDocument(url);
+        clientPdfDoc = await loadingTask.promise;
+        clientPdfTotalPages = clientPdfDoc.numPages;
+        clientPdfCurrentPage = Math.min(page, clientPdfTotalPages);
+        clientPdfZoom = zoom;
+
+        document.getElementById('client-pdf-total').textContent = clientPdfTotalPages;
+
+        await clientRenderPdfPage(clientPdfCurrentPage);
+        console.log(`[Client PDF] Loaded: ${clientPdfTotalPages} pages`);
+      } catch (error) {
+        console.error('[Client PDF] Load error:', error);
+      }
+    }
+
+    // Render a specific page on client with high quality
+    // Render a specific page on client with high quality
+    async function clientRenderPdfPage(pageNum) {
+      if (!clientPdfDoc) return;
+
+      try {
+        const page = await clientPdfDoc.getPage(pageNum);
+        
+        // Calculate scale for good quality
+        const scale = clientPdfZoom * 1.5; // 1.5x for better quality
+        // Use rotation: 0 to ensure correct orientation
+        const viewport = page.getViewport({ scale: scale, rotation: 0 });
+
+        // Set canvas dimensions
+        clientPdfCanvas.width = viewport.width;
+        clientPdfCanvas.height = viewport.height;
+
+        // Also resize draw canvas to match
+        clientPdfDrawCanvas.width = viewport.width;
+        clientPdfDrawCanvas.height = viewport.height;
+
+        // Reset canvas context to ensure no leftover transforms
+        clientPdfCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+        const renderContext = {
+          canvasContext: clientPdfCtx,
+          viewport: viewport
+        };
+
+        await page.render(renderContext).promise;
+
+        document.getElementById('client-pdf-page').textContent = pageNum;
+        clientPdfCurrentPage = pageNum;
+
+      } catch (error) {
+        console.error('[Client PDF] Render error:', error);
+      }
+    }
+
+    // PDF sync events from controller
+    socket.on('pdf_page', (data) => {
+      console.log('[Client PDF] Page sync:', data.page);
+      if (clientPdfDoc && data.page) {
+        // Clear annotations when changing pages
+        if (clientPdfDrawCtx) {
+          clientPdfDrawCtx.clearRect(0, 0, clientPdfDrawCanvas.width, clientPdfDrawCanvas.height);
+        }
+        clientPdfCurrentPage = data.page;
+        clientRenderPdfPage(clientPdfCurrentPage);
+      }
+    });
+
+    socket.on('pdf_zoom', (data) => {
+      console.log('[Client PDF] Zoom sync:', data.zoom);
+      if (clientPdfDoc && data.zoom) {
+        clientPdfZoom = data.zoom;
+        clientRenderPdfPage(clientPdfCurrentPage);
+      }
+    });
+
+    socket.on('pdf_draw', (data) => {
+      if (!clientPdfDrawCtx) return;
+
+      // Render the drawing stroke
+      const x1 = data.fromX * clientPdfDrawCanvas.width;
+      const y1 = data.fromY * clientPdfDrawCanvas.height;
+      const x2 = data.toX * clientPdfDrawCanvas.width;
+      const y2 = data.toY * clientPdfDrawCanvas.height;
+
+      clientPdfDrawCtx.beginPath();
+      clientPdfDrawCtx.moveTo(x1, y1);
+      clientPdfDrawCtx.lineTo(x2, y2);
+
+      if (data.tool === 'pen') {
+        clientPdfDrawCtx.strokeStyle = data.color;
+        clientPdfDrawCtx.lineWidth = 3;
+        clientPdfDrawCtx.globalAlpha = 1;
+        clientPdfDrawCtx.globalCompositeOperation = 'source-over';
+      } else if (data.tool === 'highlight') {
+        // Highlighter effect with controller's selected color
+        clientPdfDrawCtx.strokeStyle = data.color;
+        clientPdfDrawCtx.lineWidth = 18;
+        clientPdfDrawCtx.globalAlpha = 0.35;
+        clientPdfDrawCtx.globalCompositeOperation = 'multiply';
+      }
+
+      clientPdfDrawCtx.lineCap = 'round';
+      clientPdfDrawCtx.lineJoin = 'round';
+      clientPdfDrawCtx.stroke();
+      clientPdfDrawCtx.globalAlpha = 1;
+      clientPdfDrawCtx.globalCompositeOperation = 'source-over';
+    });
+
+    socket.on('pdf_laser', (data) => {
+      if (!clientPdfLaser || !clientPdfDrawCanvas) return;
+
+      if (data.visible) {
+        const x = data.x * clientPdfDrawCanvas.width;
+        const y = data.y * clientPdfDrawCanvas.height;
+
+        // Position laser relative to canvas container
+        const canvasContainer = document.querySelector('.client-pdf-canvas-container');
+        if (canvasContainer) {
+          clientPdfLaser.style.left = `${x}px`;
+          clientPdfLaser.style.top = `${y}px`;
+          clientPdfLaser.classList.add('active');
+        }
+      } else {
+        clientPdfLaser.classList.remove('active');
+      }
+    });
+
+    socket.on('pdf_clear', () => {
+      if (clientPdfDrawCtx) {
+        clientPdfDrawCtx.clearRect(0, 0, clientPdfDrawCanvas.width, clientPdfDrawCanvas.height);
+      }
+    });
+
+    socket.on('pdf_scroll', (data) => {
+      // Sync scroll position on client
+      const pdfWrapper = document.querySelector('.client-pdf-wrapper');
+      if (pdfWrapper && data.scrollTop !== undefined && data.scrollLeft !== undefined) {
+        pdfWrapper.scrollTop = data.scrollTop * pdfWrapper.scrollHeight;
+        pdfWrapper.scrollLeft = data.scrollLeft * pdfWrapper.scrollWidth;
+      }
+    });
+
+    // ============================================
+    // EMBEDDED CHAT FUNCTIONALITY
+    // ============================================
+    let chatOpen = false;
+    let chatUnreadCount = 0;
+    let chatInitialized = false;
+
+    // Lazy element getters (elements are added after script)
+    function getChatElements() {
+      return {
+        panel: document.getElementById('chatPanel'),
+        overlay: document.getElementById('chatOverlay'),
+        messages: document.getElementById('chatMessages'),
+        input: document.getElementById('chatInput'),
+        badge: document.getElementById('chatUnreadBadge'),
+        online: document.getElementById('chatOnlineCount')
+      };
+    }
+
+    function toggleChat() {
+      const els = getChatElements();
+      chatOpen = !chatOpen;
+      els.panel.classList.toggle('show', chatOpen);
+      els.overlay.classList.toggle('show', chatOpen);
+      document.body.classList.toggle('chat-active', chatOpen);
+
+      if (chatOpen) {
+        // Initialize chat on first open
+        if (!chatInitialized) {
+          socket.emit('identify_chat', { name: clientName, role: 'client' });
+          chatInitialized = true;
+        }
+        // Reset unread count
+        chatUnreadCount = 0;
+        updateChatBadge();
+        // Focus input
+        setTimeout(() => els.input.focus(), 300);
+        // Scroll to bottom
+        els.messages.scrollTop = els.messages.scrollHeight;
+      }
+    }
+
+    function closeChat() {
+      const els = getChatElements();
+      chatOpen = false;
+      els.panel.classList.remove('show');
+      els.overlay.classList.remove('show');
+      document.body.classList.remove('chat-active');
+    }
+
+    function updateChatBadge() {
+      const els = getChatElements();
+      if (chatUnreadCount > 0) {
+        els.badge.textContent = chatUnreadCount > 99 ? '99+' : chatUnreadCount;
+        els.badge.classList.add('show');
+      } else {
+        els.badge.classList.remove('show');
+      }
+    }
+
+    function sendChatMessage() {
+      const els = getChatElements();
+      const message = els.input.value.trim();
+      if (!message) return;
+
+      socket.emit('chat_send', { message });
+      els.input.value = '';
+    }
+
+    function formatChatTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function escapeHtmlChat(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function addChatMessage(data) {
+      const els = getChatElements();
+      // Remove empty state if exists
+      const emptyEl = els.messages.querySelector('.chat-empty');
+      if (emptyEl) emptyEl.remove();
+
+      const isOutgoing = data.senderId === socket.id;
+      const msgEl = document.createElement('div');
+      msgEl.className = `chat-msg ${isOutgoing ? 'outgoing' : 'incoming'}`;
+
+      const roleLabel = data.senderRole.toUpperCase();
+
+      msgEl.innerHTML = `
+        <div class="chat-msg-header">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="chat-msg-sender">${isOutgoing ? 'You' : escapeHtmlChat(data.senderName)}</span>
+            <span class="chat-msg-role">${roleLabel}</span>
+          </div>
+          <span class="chat-msg-time">${formatChatTime(data.timestamp)}</span>
+        </div>
+        <div class="chat-msg-text">${escapeHtmlChat(data.message)}</div>
+      `;
+
+      els.messages.appendChild(msgEl);
+      els.messages.scrollTop = els.messages.scrollHeight;
+
+      // Update unread if chat is closed and not our message
+      if (!chatOpen && !isOutgoing) {
+        chatUnreadCount++;
+        updateChatBadge();
+      }
+    }
+
+    function addChatSystemMessage(text) {
+      const els = getChatElements();
+      const emptyEl = els.messages.querySelector('.chat-empty');
+      if (emptyEl) emptyEl.remove();
+
+      const msgEl = document.createElement('div');
+      msgEl.className = 'chat-system-msg';
+      msgEl.textContent = text;
+      els.messages.appendChild(msgEl);
+      els.messages.scrollTop = els.messages.scrollHeight;
+    }
+
+    // Chat socket events
+    socket.on('chat_broadcast', (data) => {
+      addChatMessage(data);
+    });
+
+    socket.on('chat_online_count', (count) => {
+      const els = getChatElements();
+      if (els.online) els.online.textContent = count;
+    });
+
+    socket.on('chat_user_joined', (data) => {
+      addChatSystemMessage(`${data.name} joined the chat`);
+    });
+
+    socket.on('chat_user_left', (data) => {
+      addChatSystemMessage(`${data.name} left the chat`);
+    });
+
+    // Initialize Enter key listener after DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const els = getChatElements();
+      if (els.input) {
+        els.input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            sendChatMessage();
+          }
+        });
+      }
+    });
+
   </script>
+
+  <!-- Chat Button -->
+  <button class="chat-btn" id="chatBtn" onclick="toggleChat()" title="Open Chat">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+      <path d="M7 9h10v2H7zm0-3h10v2H7z" />
+    </svg>
+    <span class="unread-badge" id="chatUnreadBadge">0</span>
+  </button>
+
+  <!-- Chat Overlay -->
+  <div class="chat-overlay" id="chatOverlay" onclick="closeChat()"></div>
+
+  <!-- Chat Panel -->
+  <div class="chat-panel" id="chatPanel">
+    <div class="chat-panel-header">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"
+          style="vertical-align: middle; margin-right: 8px;">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+        </svg>
+        Chat <span class="online-count">(<span id="chatOnlineCount">0</span> online)</span>
+      </h3>
+      <button class="chat-close-btn" onclick="closeChat()">×</button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="#666" style="margin-bottom: 12px;">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+        </svg>
+        <p>No messages yet</p>
+        <p style="font-size: 0.8rem; margin-top: 4px;">Start a conversation!</p>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." maxlength="500">
+      <button class="chat-send-btn" onclick="sendChatMessage()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+        </svg>
+      </button>
+    </div>
+  </div>
 </body>
 
 </html>

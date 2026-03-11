@@ -1,13 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Media Sync Controller</title>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
     body {
       background: #000;
@@ -80,7 +87,9 @@
       color: #aaa;
     }
 
-    .wifi-info strong { color: #fff; }
+    .wifi-info strong {
+      color: #fff;
+    }
 
     .divider {
       height: 1px;
@@ -121,6 +130,272 @@
       color: #888;
       font-size: 1.1rem;
       margin-bottom: 24px;
+    }
+
+    /* Preview player (controller side) */
+    .preview-card {
+      background: #050505;
+      border: 1px solid #222;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .preview-title {
+      font-size: 0.95rem;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    .preview-media-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    .preview-indicator {
+      font-size: 0.85rem;
+      color: #0f0;
+    }
+
+    #controller-player-container {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #333;
+      background: #000;
+    }
+
+    #controller-youtube-player {
+      width: 100%;
+      height: 260px;
+      background: #000;
+      display: none;
+    }
+
+    #controller-youtube-player.active {
+      display: block;
+    }
+
+    #controller-video-player,
+    #controller-native-player {
+      width: 100%;
+      height: 260px;
+      background: #000;
+      display: none;
+    }
+
+    #controller-video-player.active,
+    #controller-native-player.active {
+      display: block;
+    }
+
+    #controller-audio-player {
+      width: 100%;
+      display: none;
+    }
+
+    #controller-audio-player.active {
+      display: block;
+    }
+
+    /* PDF Viewer Styles */
+    .pdf-container {
+      display: none;
+      background: #1a1a1a;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .pdf-container.active {
+      display: block;
+    }
+
+    .pdf-viewer-wrapper {
+      position: relative;
+      width: 100%;
+      max-height: 400px;
+      overflow: auto;
+      background: #333;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 10px;
+    }
+
+    #controller-pdf-canvas {
+      max-width: 100%;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .pdf-draw-canvas {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: auto;
+      cursor: crosshair;
+    }
+
+    .pdf-laser-pointer {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: radial-gradient(circle, rgba(255, 0, 0, 1) 0%, rgba(255, 0, 0, 0.5) 50%, rgba(255, 0, 0, 0) 100%);
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      box-shadow: 0 0 10px 5px rgba(255, 0, 0, 0.5);
+    }
+
+    .pdf-laser-pointer.active {
+      display: block;
+    }
+
+    .pdf-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 12px;
+      background: #111;
+      border-top: 1px solid #333;
+      flex-wrap: wrap;
+    }
+
+    .pdf-nav-btn {
+      padding: 8px 16px;
+      background: #222;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .pdf-nav-btn:hover {
+      background: #333;
+      border-color: #666;
+    }
+
+    .pdf-page-info {
+      color: #888;
+      font-size: 0.9rem;
+      padding: 0 10px;
+    }
+
+    .pdf-zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 16px;
+      padding-left: 16px;
+      border-left: 1px solid #333;
+    }
+
+    .pdf-zoom-btn {
+      width: 32px;
+      height: 32px;
+      background: #222;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .pdf-zoom-btn:hover {
+      background: #333;
+      border-color: #666;
+    }
+
+    #pdfZoomLevel {
+      color: #888;
+      font-size: 0.85rem;
+      min-width: 50px;
+      text-align: center;
+    }
+
+    .pdf-tools {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #0a0a0a;
+      border-top: 1px solid #222;
+      flex-wrap: wrap;
+    }
+
+    .pdf-tool-btn {
+      padding: 8px 14px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #aaa;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .pdf-tool-btn:hover {
+      background: #222;
+      border-color: #555;
+      color: #fff;
+    }
+
+    .pdf-tool-btn.active {
+      background: #fff;
+      color: #000;
+      border-color: #fff;
+    }
+
+    .pdf-clear-btn {
+      background: rgba(255, 100, 100, 0.1);
+      border-color: rgba(255, 100, 100, 0.3);
+      color: #ff6666;
+    }
+
+    .pdf-clear-btn:hover {
+      background: rgba(255, 100, 100, 0.2);
+      border-color: rgba(255, 100, 100, 0.5);
+    }
+
+    #pdfPenColor {
+      width: 36px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid #444;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+    }
+
+    .preview-status {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: #777;
+      display: flex;
+      justify-content: space-between;
     }
 
     .card {
@@ -189,7 +464,9 @@
       transition: all 0.3s;
     }
 
-    input::placeholder { color: #555; }
+    input::placeholder {
+      color: #555;
+    }
 
     input:focus {
       outline: none;
@@ -277,7 +554,9 @@
       margin-bottom: 20px;
     }
 
-    #seekTime { width: 140px; }
+    #seekTime {
+      width: 140px;
+    }
 
     .status {
       display: flex;
@@ -342,9 +621,18 @@
       background: #0a0a0a;
     }
 
-    .file-list::-webkit-scrollbar { width: 8px; }
-    .file-list::-webkit-scrollbar-track { background: transparent; }
-    .file-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    .file-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .file-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .file-list::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
 
     .file-list-header {
       padding: 12px 16px;
@@ -421,9 +709,18 @@
       line-height: 1.6;
     }
 
-    #log::-webkit-scrollbar { width: 8px; }
-    #log::-webkit-scrollbar-track { background: transparent; }
-    #log::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    #log::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #log::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #log::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
 
     .log-entry {
       padding: 4px 0;
@@ -442,6 +739,7 @@
       .main-container {
         grid-template-columns: 1fr;
       }
+
       .left-panel {
         position: relative;
         top: 0;
@@ -449,17 +747,860 @@
     }
 
     @media (max-width: 640px) {
-      body { padding: 12px; }
-      header h1 { font-size: 2rem; }
-      .controls { grid-template-columns: 1fr 1fr; }
-      .input-group, .seek-group { flex-direction: column; }
-      #seekTime { width: 100%; }
-      .card { padding: 20px; }
-      .qr-code img { width: 160px; height: 160px; }
-      .media-tabs { flex-direction: column; }
+      body {
+        padding: 12px;
+      }
+
+      header h1 {
+        font-size: 2rem;
+      }
+
+      .controls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .input-group,
+      .seek-group {
+        flex-direction: column;
+      }
+
+      #seekTime {
+        width: 100%;
+      }
+
+      .card {
+        padding: 20px;
+      }
+
+      .qr-code img {
+        width: 160px;
+        height: 160px;
+      }
+
+      .media-tabs {
+        flex-direction: column;
+      }
+    }
+
+    /* Dashboard Styles */
+    .dashboard-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #222;
+    }
+
+    .dashboard-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .dashboard-title .count {
+      font-size: 0.85rem;
+      color: #0f0;
+      background: rgba(0, 255, 0, 0.1);
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .status-label {
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    .status-value {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .status-online {
+      color: #0f0;
+    }
+
+    .status-offline {
+      color: #f00;
+    }
+
+    .device-list-btn {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      margin-top: 12px;
+      width: 100%;
+    }
+
+    .device-list-btn:hover {
+      background: #252525;
+      border-color: #444;
+    }
+
+    /* Device List Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-header h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+
+      color: #888;
+      font-size: 1.5rem;
+
+      cursor: pointer;
+      padding: 0;
+
+      outline: none;
+      box-shadow: none;
+
+      transition: color 0.2s ease;
+
+      -webkit-tap-highlight-color: transparent;
+      /* mobile */
+    }
+
+    .modal-close:hover,
+    .modal-close:focus,
+    .modal-close:active {
+      background: transparent !important;
+      /* 🔥 kill white bg */
+      outline: none;
+      box-shadow: none;
+      color: #fff;
+    }
+
+    .device-group {
+      margin-bottom: 20px;
+    }
+
+    .device-group-title {
+      font-size: 0.85rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .device-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .device-info {
+      flex: 1;
+    }
+
+    .device-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .device-ip {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    .device-host {
+      background: rgba(0, 255, 0, 0.15);
+      color: #0f0;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      margin-left: 8px;
+    }
+
+    .kick-btn {
+      background: rgba(255, 0, 0, 0.2);
+      border: 1px solid rgba(255, 0, 0, 0.3);
+      color: #f55;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+
+    .kick-btn:hover {
+      background: rgba(255, 0, 0, 0.4);
+      border-color: rgba(255, 0, 0, 0.5);
+    }
+
+    .no-devices {
+      color: #666;
+      font-size: 0.9rem;
+      text-align: center;
+      padding: 20px;
+    }
+
+    /* Join Request Notifications */
+    .join-requests-panel {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 380px;
+      max-height: 60vh;
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 16px;
+      z-index: 2000;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      display: none;
+    }
+
+    .join-requests-panel.show {
+      display: block;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .join-requests-header {
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #1a1a1a, #0a0a0a);
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .join-requests-header h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .join-requests-header .badge {
+      background: #ff9800;
+      color: #000;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .join-requests-list {
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .join-request-item {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 8px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .join-request-info {
+      margin-bottom: 12px;
+    }
+
+    .join-request-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .join-request-subtitle {
+      font-size: 0.85rem;
+      color: #ff9800;
+    }
+
+    .join-request-ip {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .join-request-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .approve-btn {
+      flex: 1;
+      padding: 10px 16px;
+      background: #4CAF50;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .approve-btn:hover {
+      background: #45a049;
+      transform: translateY(-1px);
+    }
+
+    .reject-btn {
+      flex: 1;
+      padding: 10px 16px;
+      background: transparent;
+      border: 1px solid #f44336;
+      border-radius: 8px;
+      color: #f44336;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .reject-btn:hover {
+      background: rgba(244, 67, 54, 0.1);
+    }
+
+    /* Join Request Notification Badge on Dashboard */
+    .pending-badge {
+      background: #ff9800;
+      color: #000;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 8px;
+      margin-left: 8px;
+      display: none;
+    }
+
+    .pending-badge.show {
+      display: inline;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.6;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .join-requests-panel {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+      }
+    }
+
+    /* Chat Button - Black & White Theme */
+    .chat-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+
+      background: #fff;
+      border: 2px solid #000;
+      color: #000;
+
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 0;
+      /* 🔴 critical */
+      line-height: 0;
+      /* 🔴 critical */
+    }
+
+    .chat-btn:hover {
+      transform: scale(1.1);
+      background: #000;
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .chat-btn:active {
+      transform: scale(0.95);
+    }
+
+    .chat-btn .unread-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: #ff3b3b;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #000;
+    }
+
+    .chat-btn .unread-badge.show {
+      display: flex;
+    }
+
+    /* Chat Panel */
+    .chat-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1001;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .chat-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .chat-panel {
+      position: fixed;
+      top: 0;
+      right: -400px;
+      width: 380px;
+      height: 100vh;
+      background: #0a0a0a;
+      border-left: 1px solid #333;
+      z-index: 1002;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.3s ease;
+    }
+
+    .chat-panel.show {
+      right: 0;
+    }
+
+    .chat-panel-header {
+      padding: 16px 20px;
+      background: #111;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-panel-header h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chat-panel-header .online-count {
+      font-size: 0.8rem;
+      color: #888;
+      font-weight: 400;
+    }
+
+    .chat-close-btn {
+      background: transparent;
+      border: none;
+
+      color: #888;
+      font-size: 28px;
+      line-height: 1;
+
+      cursor: pointer;
+      padding: 0;
+
+      outline: none;
+      /* 🔴 remove focus ring */
+      box-shadow: none;
+      /* 🔴 remove browser shadow */
+
+      transition: color 0.2s ease;
+    }
+
+    .chat-close-btn:hover,
+    .chat-close-btn:focus,
+    .chat-close-btn:active {
+      background: transparent !important;
+      /* 🔥 force no bg */
+      outline: none;
+      box-shadow: none;
+      color: #fff;
+    }
+
+    /* Mobile / Chrome tap highlight */
+    .chat-close-btn {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 3px;
+    }
+
+    .chat-msg {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+
+    .chat-msg.incoming {
+      align-self: flex-start;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-msg.outgoing {
+      align-self: flex-end;
+      background: #fff;
+      color: #000;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-msg-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      gap: 8px;
+    }
+
+    .chat-msg-sender {
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    .chat-msg.incoming .chat-msg-sender {
+      color: #888;
+    }
+
+    .chat-msg.outgoing .chat-msg-sender {
+      color: #666;
+    }
+
+    .chat-msg-role {
+      font-size: 0.65rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .chat-msg.incoming .chat-msg-role {
+      background: rgba(255, 255, 255, 0.1);
+      color: #888;
+    }
+
+    .chat-msg.outgoing .chat-msg-role {
+      background: rgba(0, 0, 0, 0.1);
+      color: #666;
+    }
+
+    .chat-msg-time {
+      font-size: 0.65rem;
+      opacity: 0.6;
+    }
+
+    .chat-msg-text {
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .chat-input-area {
+      padding: 16px;
+      background: #111;
+      border-top: 1px solid #333;
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 24px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: #fff;
+    }
+
+    .chat-input::placeholder {
+      color: #666;
+    }
+
+    .chat-send-btn {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      flex-shrink: 0;
+
+      border-radius: 50%;
+      background: #fff;
+      border: none;
+
+      color: #000;
+      cursor: pointer;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 0;
+      /* 🔴 important */
+      line-height: 0;
+      /* 🔴 important */
+
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .chat-send-btn:hover {
+      transform: scale(1.05);
+      background: #eee;
+    }
+
+    .chat-empty {
+      text-align: center;
+      color: #666;
+      padding: 40px 20px;
+    }
+
+    .chat-empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .chat-system-msg {
+      text-align: center;
+      color: #666;
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      align-self: center;
+    }
+
+    @media (max-width: 768px) {
+      .chat-btn {
+        width: 52px;
+        height: 52px;
+        bottom: 20px;
+        right: 20px;
+        z-index: 999;
+      }
+
+      /* Full-screen chat panel on mobile */
+      .chat-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        border-left: none;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .chat-panel.show {
+        transform: translateX(0);
+        right: 0;
+      }
+
+      /* Hide overlay on mobile since panel is full screen */
+      .chat-overlay {
+        display: none !important;
+      }
+
+      .chat-panel-header {
+        flex-shrink: 0;
+        padding: 16px 20px;
+        padding-top: calc(16px + env(safe-area-inset-top, 0px));
+      }
+
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        padding-bottom: 16px;
+        min-height: 0;
+      }
+
+      .chat-input-area {
+        flex-shrink: 0;
+        position: relative;
+        padding: 12px 16px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        background: #111;
+        border-top: 1px solid #333;
+      }
+
+      .chat-input {
+        padding: 12px 16px;
+        font-size: 16px;
+        flex: 1;
+      }
+
+      .chat-send-btn {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        flex-shrink: 0;
+      }
+
+      /* Hide chat button when chat is open */
+      body.chat-active .chat-btn {
+        display: none;
+      }
+
+      /* Hide main content when chat is active on mobile */
+      body.chat-active .main-container {
+        display: none;
+      }
+
+      /* Ensure body doesn't scroll when chat is open */
+      body.chat-active {
+        overflow: hidden;
+      }
     }
   </style>
 </head>
+
 <body>
   <div class="main-container">
     <div class="left-panel">
@@ -490,6 +1631,79 @@
           <img id="clientQR" src="" alt="Client QR">
         </div>
       </div>
+
+      <!-- Dashboard Section -->
+      <div class="dashboard-section">
+        <div class="dashboard-title">
+          Dashboard
+          <span id="controllerName" style="font-size: 0.8rem; color: #888;"></span>
+        </div>
+
+        <div class="status-row">
+          <span class="status-label">Server Status</span>
+          <span class="status-value status-online" id="serverStatus">● Online</span>
+        </div>
+
+        <div class="status-row">
+          <span class="status-label">Connected Clients</span>
+          <span class="status-value" id="clientsCount">0</span>
+        </div>
+
+        <div class="status-row">
+          <span class="status-label">Controllers</span>
+          <span class="status-value" id="controllersCount">0</span>
+        </div>
+
+        <div class="status-row">
+          <span class="status-label">Pending Requests</span>
+          <span class="status-value" id="pendingClientsCount" style="color: #ff9800;">0</span>
+        </div>
+
+        <button class="device-list-btn" onclick="openDeviceList()">
+          View All Devices
+        </button>
+      </div>
+    </div>
+
+    <!-- Device List Modal -->
+    <div class="modal-overlay" id="deviceListModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Connected Devices</h2>
+          <button class="modal-close" onclick="closeDeviceList()">×</button>
+        </div>
+
+        <div class="device-group">
+          <div class="device-group-title">Controllers</div>
+          <div id="controllersList">
+            <div class="no-devices">No controllers connected</div>
+          </div>
+        </div>
+
+        <div class="device-group">
+          <div class="device-group-title">Clients</div>
+          <div id="clientsList">
+            <div class="no-devices">No clients connected</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Join Requests Panel -->
+    <div class="join-requests-panel" id="joinRequestsPanel">
+      <div class="join-requests-header">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          </svg>
+          Join Requests
+          <span class="badge" id="pendingCountBadge">0</span>
+        </h3>
+      </div>
+      <div class="join-requests-list" id="joinRequestsList">
+        <div class="no-devices">No pending requests</div>
+      </div>
     </div>
 
     <div class="right-panel">
@@ -498,12 +1712,63 @@
         <p>Control YouTube videos, local video and audio playback</p>
       </header>
 
+      <!-- Preview player that mirrors what clients see -->
+      <div class="preview-card">
+        <div class="preview-header">
+          <div>
+            <div class="preview-title">Now Playing (Preview)</div>
+            <div id="previewMediaName" class="preview-media-name">No media loaded</div>
+          </div>
+          <div class="preview-indicator" id="previewStatus">Idle</div>
+        </div>
+        <div id="controller-player-container">
+          <div id="controller-youtube-player"></div>
+          <video id="controller-video-player" controls playsinline></video>
+          <video id="controller-native-player" controls playsinline></video>
+          <audio id="controller-audio-player" controls></audio>
+          <!-- PDF Viewer Container -->
+          <div id="controller-pdf-container" class="pdf-container">
+            <div class="pdf-viewer-wrapper">
+              <canvas id="controller-pdf-canvas"></canvas>
+              <canvas id="controller-pdf-draw-canvas" class="pdf-draw-canvas"></canvas>
+              <div id="controller-pdf-laser" class="pdf-laser-pointer"></div>
+            </div>
+            <div class="pdf-controls">
+              <button class="pdf-nav-btn" onclick="pdfPrevPage()">◀ Prev</button>
+              <span class="pdf-page-info">Page <span id="pdfCurrentPage">1</span> / <span
+                  id="pdfTotalPages">1</span></span>
+              <button class="pdf-nav-btn" onclick="pdfNextPage()">Next ▶</button>
+              <div class="pdf-zoom-controls">
+                <button class="pdf-zoom-btn" onclick="pdfZoomOut()">−</button>
+                <span id="pdfZoomLevel">100%</span>
+                <button class="pdf-zoom-btn" onclick="pdfZoomIn()">+</button>
+                <button class="pdf-zoom-btn" onclick="pdfResetZoom()">Reset</button>
+              </div>
+            </div>
+            <div class="pdf-tools">
+              <button class="pdf-tool-btn" id="pdfToolPen" onclick="setPdfTool('pen')">✏️ Pen</button>
+              <button class="pdf-tool-btn" id="pdfToolHighlight" onclick="setPdfTool('highlight')">🖍️
+                Highlight</button>
+              <button class="pdf-tool-btn active" id="pdfToolLaser" onclick="setPdfTool('laser')">🔴 Laser</button>
+              <button class="pdf-tool-btn pdf-clear-btn" onclick="pdfClearAnnotations()">🗑️ Clear</button>
+              <input type="color" id="pdfPenColor" value="#ff0000" onchange="setPdfPenColor(this.value)"
+                title="Pen Color">
+            </div>
+          </div>
+        </div>
+        <div class="preview-status">
+          <span id="previewType">Type: none</span>
+          <span id="previewTime">Time: 0s</span>
+        </div>
+      </div>
+
       <div class="card">
         <!-- Media Type Tabs -->
         <div class="media-tabs">
-          <button class="tab-btn active" onclick="switchTab('youtube')">YouTube Video</button>
-          <button class="tab-btn" onclick="switchTab('video')">Local Video</button>
-          <button class="tab-btn" onclick="switchTab('audio')">Local Audio</button>
+          <button class="tab-btn active" onclick="switchTab('youtube')">YouTube</button>
+          <button class="tab-btn" onclick="switchTab('video')">Video</button>
+          <button class="tab-btn" onclick="switchTab('audio')">Audio</button>
+          <button class="tab-btn" onclick="switchTab('pdf')">PDF</button>
         </div>
 
         <!-- YouTube Tab -->
@@ -529,12 +1794,13 @@
               <div id="videoProgressFill" class="progress-fill"></div>
             </div>
           </div>
-          
+
           <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 8px 0;">
             <div style="color: #888; font-size: 0.9rem; font-weight: 600;">Uploaded Videos</div>
-            <button onclick="refreshFiles('video')" class="btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;">↻ Refresh</button>
+            <button onclick="refreshFiles('video')" class="btn-secondary"
+              style="padding: 8px 16px; font-size: 0.85rem;">↻ Refresh</button>
           </div>
-          
+
           <div id="videoFileList" class="file-list">
             <div style="text-align: center; padding: 20px; color: #666;">Loading files...</div>
           </div>
@@ -555,13 +1821,41 @@
               <div id="audioProgressFill" class="progress-fill"></div>
             </div>
           </div>
-          
+
           <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 8px 0;">
             <div style="color: #888; font-size: 0.9rem; font-weight: 600;">Uploaded Audio</div>
-            <button onclick="refreshFiles('audio')" class="btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;">↻ Refresh</button>
+            <button onclick="refreshFiles('audio')" class="btn-secondary"
+              style="padding: 8px 16px; font-size: 0.85rem;">↻ Refresh</button>
           </div>
-          
+
           <div id="audioFileList" class="file-list">
+            <div style="text-align: center; padding: 20px; color: #666;">Loading files...</div>
+          </div>
+        </div>
+
+        <!-- PDF Tab -->
+        <div id="pdf-tab" class="tab-content">
+          <div class="input-group">
+            <label class="file-upload-btn" id="pdfFileLabel">
+              <span id="pdfFileName">Choose PDF File</span>
+              <input type="file" id="pdfFile" accept=".pdf,application/pdf" onchange="handleFileSelect(this, 'pdf')">
+            </label>
+            <button id="uploadPdfBtn" onclick="uploadFile('pdf')" disabled>Upload & View</button>
+          </div>
+          <div id="pdfUploadProgress" class="upload-progress">
+            <div style="color: #aaa; font-size: 0.9rem;">Uploading...</div>
+            <div class="progress-bar">
+              <div id="pdfProgressFill" class="progress-fill"></div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 8px 0;">
+            <div style="color: #888; font-size: 0.9rem; font-weight: 600;">Uploaded PDFs</div>
+            <button onclick="refreshFiles('pdf')" class="btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;">↻
+              Refresh</button>
+          </div>
+
+          <div id="pdfFileList" class="file-list">
             <div style="text-align: center; padding: 20px; color: #666;">Loading files...</div>
           </div>
         </div>
@@ -576,6 +1870,8 @@
         <div class="seek-group">
           <input id="seekTime" type="number" placeholder="Seek (seconds)" />
           <button class="btn-secondary" onclick="seek()">Seek to Time</button>
+          <button class="btn-secondary" onclick="seekBy(-10)">-10s</button>
+          <button class="btn-secondary" onclick="seekBy(10)">+10s</button>
         </div>
 
         <button class="sync-all-btn" onclick="syncAll()">SYNC ALL CLIENTS</button>
@@ -601,27 +1897,1066 @@
   </div>
 
   <script>
+    // Always prompt for controller name on each session
+    let controllerName = prompt('Enter your name for Media Sync Controller:', 'Controller');
+    if (!controllerName || controllerName.trim() === '') {
+      controllerName = 'Controller_' + Math.random().toString(36).substring(2, 8);
+    }
+
+    // Display controller name in dashboard
+    document.getElementById('controllerName').textContent = controllerName;
+
     const socket = io();
-    socket.emit("identify", { role: "controller" });
+    socket.emit("identify", { role: "controller", name: controllerName });
+
+    // Device list data
+    let deviceListData = { clients: [], controllers: [] };
+
+    // Socket event handlers for dashboard
+    socket.on("device_list", (data) => {
+      deviceListData = data;
+      document.getElementById('clientsCount').textContent = data.clientCount || 0;
+      document.getElementById('controllersCount').textContent = data.controllerCount || 0;
+      document.getElementById('count').textContent = data.clientCount || 0;
+      document.getElementById('controllerCount').textContent = data.controllerCount || 0;
+      renderDeviceList();
+    });
+
+    socket.on("clients_count", (data) => {
+      document.getElementById('clientsCount').textContent = data.clients || 0;
+      document.getElementById('controllersCount').textContent = data.controllers || 0;
+      document.getElementById('count').textContent = data.clients || 0;
+      document.getElementById('controllerCount').textContent = data.controllers || 0;
+    });
+
+    // ================================================
+    // JOIN REQUEST HANDLING
+    // ================================================
+    let pendingJoinRequests = new Map(); // socketId -> { name, ip, requestedAt }
+
+    // Handle incoming join request
+    socket.on("join_request", (data) => {
+      console.log("[Controller] Join request received:", data);
+      pendingJoinRequests.set(data.socketId, {
+        name: data.name,
+        ip: data.ip,
+        requestedAt: data.requestedAt
+      });
+      renderJoinRequests();
+      showJoinRequestsPanel();
+      playNotificationSound();
+    });
+
+    // Handle join request resolved (approved/rejected/disconnected)
+    socket.on("join_request_resolved", (data) => {
+      console.log("[Controller] Join request resolved:", data);
+      pendingJoinRequests.delete(data.socketId);
+      renderJoinRequests();
+      if (pendingJoinRequests.size === 0) {
+        hideJoinRequestsPanel();
+      }
+    });
+
+    // Handle pending count update
+    socket.on("pending_count", (data) => {
+      updatePendingBadge(data.count);
+    });
+
+    function playNotificationSound() {
+      // Create a simple beep sound for notification
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = 880;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      } catch (e) {
+        console.log("[Controller] Could not play notification sound");
+      }
+    }
+
+    function showJoinRequestsPanel() {
+      document.getElementById('joinRequestsPanel').classList.add('show');
+    }
+
+    function hideJoinRequestsPanel() {
+      document.getElementById('joinRequestsPanel').classList.remove('show');
+    }
+
+    function updatePendingBadge(count) {
+      const badge = document.getElementById('pendingCountBadge');
+      if (badge) {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'inline' : 'none';
+      }
+      // Update dashboard pending count
+      const dashboardCount = document.getElementById('pendingClientsCount');
+      if (dashboardCount) {
+        dashboardCount.textContent = count;
+      }
+    }
+
+    function renderJoinRequests() {
+      const listEl = document.getElementById('joinRequestsList');
+      if (!listEl) return;
+
+      if (pendingJoinRequests.size === 0) {
+        listEl.innerHTML = '<div class="no-devices">No pending requests</div>';
+        return;
+      }
+
+      let html = '';
+      pendingJoinRequests.forEach((request, socketId) => {
+        html += `
+          <div class="join-request-item" id="request-${socketId}">
+            <div class="join-request-info">
+              <div class="join-request-name">"${escapeHtml(request.name)}" wants to join</div>
+              <div class="join-request-subtitle">Waiting for your permission...</div>
+              <div class="join-request-ip">IP: ${request.ip}</div>
+            </div>
+            <div class="join-request-actions">
+              <button class="approve-btn" onclick="approveClient('${socketId}')">
+                ✓ Accept
+              </button>
+              <button class="reject-btn" onclick="rejectClient('${socketId}')">
+                ✗ Reject
+              </button>
+            </div>
+          </div>
+        `;
+      });
+
+      listEl.innerHTML = html;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function approveClient(socketId) {
+      console.log("[Controller] Approving client:", socketId);
+      socket.emit("approve_client", { socketId: socketId });
+
+      // Remove from local list (server will also send resolved event)
+      pendingJoinRequests.delete(socketId);
+      renderJoinRequests();
+
+      if (pendingJoinRequests.size === 0) {
+        hideJoinRequestsPanel();
+      }
+
+      log(`Approved client join request`);
+    }
+
+    function rejectClient(socketId) {
+      console.log("[Controller] Rejecting client:", socketId);
+      socket.emit("reject_client", { socketId: socketId });
+
+      // Remove from local list (server will also send resolved event)
+      pendingJoinRequests.delete(socketId);
+      renderJoinRequests();
+
+      if (pendingJoinRequests.size === 0) {
+        hideJoinRequestsPanel();
+      }
+
+      log(`Rejected client join request`);
+    }
+
+    // Device List Modal Functions
+    function openDeviceList() {
+      document.getElementById('deviceListModal').classList.add('active');
+    }
+
+    function closeDeviceList() {
+      document.getElementById('deviceListModal').classList.remove('active');
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('deviceListModal').addEventListener('click', (e) => {
+      if (e.target.id === 'deviceListModal') {
+        closeDeviceList();
+      }
+    });
+
+    function renderDeviceList() {
+      const controllersListEl = document.getElementById('controllersList');
+      const clientsListEl = document.getElementById('clientsList');
+
+      // Render controllers
+      if (deviceListData.controllers && deviceListData.controllers.length > 0) {
+        controllersListEl.innerHTML = deviceListData.controllers.map(ctrl => `
+          <div class="device-item">
+            <div class="device-info">
+              <span class="device-name">${ctrl.name}${ctrl.isHost ? '<span class="device-host">HOST</span>' : ''}</span>
+              <div class="device-ip">IP: ${ctrl.ip}</div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        controllersListEl.innerHTML = '<div class="no-devices">No controllers connected</div>';
+      }
+
+      // Render clients
+      if (deviceListData.clients && deviceListData.clients.length > 0) {
+        clientsListEl.innerHTML = deviceListData.clients.map(client => `
+          <div class="device-item">
+            <div class="device-info">
+              <span class="device-name">${client.name}</span>
+              <div class="device-ip">IP: ${client.ip}</div>
+            </div>
+            <button class="kick-btn" onclick="kickClient('${client.id}', '${client.name}')">Kick</button>
+          </div>
+        `).join('');
+      } else {
+        clientsListEl.innerHTML = '<div class="no-devices">No clients connected</div>';
+      }
+    }
+
+    function kickClient(clientId, clientName) {
+      if (confirm(`Are you sure you want to kick "${clientName}"?`)) {
+        socket.emit('kick_client', { clientId: clientId });
+        log(`Kicked client: ${clientName}`);
+      }
+    }
 
     let currentTab = 'youtube';
-    let selectedFiles = { video: null, audio: null };
+    let selectedFiles = { video: null, audio: null, pdf: null };
+    let isHost = true; // server will confirm actual host status
+
+    // --- Controller-side preview player state ---
+    let previewMediaType = null;
+    let previewYTPlayer = null;
+    let previewYTReady = false;
+    let useNativePreviewVideo = true;
+    let isApplyingRemoteCommand = false; // guard to avoid command echo loops
+    let lastPreviewState = { playing: null };  // Track last known state to prevent duplicate commands
+    let commandLockTimeout = null;  // Timeout to keep command lock active during async operations
+    let previewCurrentTime = 0; // tracks last known media time for +/- seek
+
+    const previewMediaNameEl = document.getElementById('previewMediaName');
+    const previewStatusEl = document.getElementById('previewStatus');
+    const previewTypeEl = document.getElementById('previewType');
+    const previewTimeEl = document.getElementById('previewTime');
+
+    const controllerYTDiv = document.getElementById('controller-youtube-player');
+    const controllerVideo = document.getElementById('controller-video-player');
+    const controllerNativeVideo = document.getElementById('controller-native-player');
+    const controllerAudio = document.getElementById('controller-audio-player');
+
+    function setControlEnabled(enabled) {
+      const disable = !enabled;
+
+      // Main playback control buttons
+      document.querySelectorAll('.controls button').forEach(btn => {
+        btn.disabled = disable;
+      });
+
+      // Seek + sync buttons
+      document.querySelectorAll('.seek-group button, .sync-all-btn').forEach(btn => {
+        btn.disabled = disable;
+      });
+
+      // Upload buttons
+      ['video', 'audio', 'pdf'].forEach(type => {
+        const uploadBtnId = `upload${type.charAt(0).toUpperCase() + type.slice(1)}Btn`;
+        const uploadBtn = document.getElementById(uploadBtnId);
+        if (uploadBtn) uploadBtn.disabled = disable || !selectedFiles[type];
+      });
+    }
+
+    // --- Preview player helpers ---
+    function hideAllPreviewPlayers() {
+      // STOP YouTube player completely before hiding
+      if (previewYTPlayer && previewYTReady) {
+        try {
+          previewYTPlayer.stopVideo();
+          previewYTPlayer.destroy();
+        } catch (e) {
+          console.log('[Controller] Error stopping YouTube preview:', e);
+        }
+        previewYTPlayer = null;
+        previewYTReady = false;
+      }
+
+      controllerYTDiv.classList.remove('active');
+      // Clear the YouTube div content so a new player can be created
+      controllerYTDiv.innerHTML = '';
+
+      controllerVideo.classList.remove('active');
+      controllerNativeVideo.classList.remove('active');
+      controllerAudio.classList.remove('active');
+
+      // Hide PDF container
+      const pdfContainer = document.getElementById('controller-pdf-container');
+      if (pdfContainer) {
+        pdfContainer.classList.remove('active');
+      }
+
+      // Clear YouTube seek check interval if exists
+      if (typeof ytSeekCheckInterval !== 'undefined' && ytSeekCheckInterval) {
+        clearInterval(ytSeekCheckInterval);
+        ytSeekCheckInterval = null;
+      }
+
+      try {
+        controllerVideo.pause();
+        controllerVideo.removeAttribute('src');
+        controllerVideo.load();
+        controllerVideo.currentTime = 0;
+      } catch (e) { }
+
+      try {
+        controllerNativeVideo.pause();
+        controllerNativeVideo.removeAttribute('src');
+        controllerNativeVideo.load();
+        controllerNativeVideo.currentTime = 0;
+      } catch (e) { }
+
+      try {
+        controllerAudio.pause();
+        controllerAudio.removeAttribute('src');
+        controllerAudio.load();
+        controllerAudio.currentTime = 0;
+      } catch (e) { }
+    }
+
+    function updatePreviewTimeDisplay(timeSeconds) {
+      const t = Math.max(0, Math.floor(timeSeconds || 0));
+      previewCurrentTime = t;
+      previewTimeEl.textContent = `Time: ${t}s`;
+    }
+
+    // YouTube API callback for controller preview
+    function onYouTubeIframeAPIReady() {
+      // This will be called on this page; we lazily create player when needed in loadPreviewMedia
+      console.log('[Controller] YouTube Iframe API ready');
+    }
+
+    // YouTube seek tracking variables
+    let ytLastKnownTime = 0;
+    let ytSeekCheckInterval = null;
+
+    function ensurePreviewYTPlayer(videoId, startTime) {
+      controllerYTDiv.classList.add('active');
+
+      // Clear any existing seek check interval
+      if (ytSeekCheckInterval) {
+        clearInterval(ytSeekCheckInterval);
+        ytSeekCheckInterval = null;
+      }
+
+      // Destroy old if exists
+      if (previewYTPlayer && typeof previewYTPlayer.destroy === 'function') {
+        try {
+          previewYTPlayer.destroy();
+        } catch (e) { }
+        previewYTPlayer = null;
+      }
+
+      // Restore the inner div for YouTube player (YouTube API replaces it with iframe)
+      controllerYTDiv.innerHTML = '<div id="controller-yt-player"></div>';
+
+      previewYTReady = false;
+      ytLastKnownTime = startTime || 0;
+
+      previewYTPlayer = new YT.Player('controller-yt-player', {
+        height: '260',
+        width: '100%',
+        videoId,
+        playerVars: {
+          autoplay: 1,
+          controls: 1,
+          rel: 0,
+          modestbranding: 1,
+          playsinline: 1
+        },
+        events: {
+          onReady: (ev) => {
+            previewYTReady = true;
+            if (typeof startTime === 'number' && startTime > 0) {
+              ev.target.seekTo(startTime, true);
+            }
+            ev.target.playVideo();
+
+            // Start monitoring for seek events (YouTube API doesn't have a native seek event)
+            ytSeekCheckInterval = setInterval(() => {
+              if (!previewYTReady || !previewYTPlayer || previewMediaType !== 'youtube') return;
+              if (isApplyingRemoteCommand) return;
+
+              try {
+                const currentTime = previewYTPlayer.getCurrentTime();
+                const playerState = previewYTPlayer.getPlayerState();
+
+                // Update time display
+                updatePreviewTimeDisplay(currentTime);
+
+                // Detect seek: if time jumped by more than 2 seconds (not normal playback)
+                const timeDiff = Math.abs(currentTime - ytLastKnownTime);
+                if (timeDiff > 2 && playerState !== YT.PlayerState.BUFFERING) {
+                  console.log('[Controller] YouTube seek detected:', ytLastKnownTime, '->', currentTime);
+                  socket.emit('command', { type: 'seek', time: currentTime });
+                }
+
+                // Track time for next check (add ~0.3s for 300ms interval)
+                if (playerState === YT.PlayerState.PLAYING) {
+                  ytLastKnownTime = currentTime;
+                } else {
+                  ytLastKnownTime = currentTime;
+                }
+              } catch (e) {
+                console.warn('[Controller] Error checking YouTube time:', e);
+              }
+            }, 300);
+          },
+          onStateChange: (ev) => {
+            if (!isHost || isApplyingRemoteCommand || previewMediaType !== 'youtube') return;
+            const state = ev.data;
+            if (state === YT.PlayerState.PLAYING) {
+              socket.emit('command', { type: 'play' });
+              // Update last known time when playing starts
+              try {
+                ytLastKnownTime = previewYTPlayer.getCurrentTime();
+              } catch (e) { }
+            } else if (state === YT.PlayerState.PAUSED) {
+              socket.emit('command', { type: 'pause' });
+              // Update last known time when paused
+              try {
+                ytLastKnownTime = previewYTPlayer.getCurrentTime();
+              } catch (e) { }
+            } else if (state === YT.PlayerState.ENDED) {
+              socket.emit('command', { type: 'pause' });
+            }
+          }
+        }
+      });
+    }
+
+    function loadPreviewMedia(data) {
+      console.log('[Controller] Preview loading media', data);
+      previewMediaType = data.mediaType;
+      hideAllPreviewPlayers();
+
+      const typeLabels = {
+        youtube: 'YouTube Video',
+        local_video: 'Local Video',
+        local_audio: 'Local Audio',
+        pdf: 'PDF Document'
+      };
+
+      previewTypeEl.textContent = `Type: ${typeLabels[data.mediaType] || 'none'}`;
+      updatePreviewTimeDisplay(data.time || 0);
+
+      if (data.mediaType === 'youtube') {
+        previewMediaNameEl.textContent = `Video ID: ${data.videoId}`;
+        previewStatusEl.textContent = 'Playing';
+        ensurePreviewYTPlayer(data.videoId, data.time || 0);
+        return;
+      }
+
+      if (data.mediaType === 'local_video') {
+        previewMediaNameEl.textContent = data.fileName || 'Local Video';
+        previewStatusEl.textContent = 'Playing';
+
+        // Use native <video> for preview
+        controllerNativeVideo.classList.add('active');
+        controllerNativeVideo.src = data.fileUrl;
+        controllerNativeVideo.currentTime = data.time || 0;
+        controllerNativeVideo.load();
+        controllerNativeVideo.play().catch(() => { });
+        return;
+      }
+
+      if (data.mediaType === 'local_audio') {
+        previewMediaNameEl.textContent = data.fileName || 'Local Audio';
+        previewStatusEl.textContent = 'Playing';
+
+        controllerAudio.classList.add('active');
+        controllerAudio.src = data.fileUrl;
+        controllerAudio.currentTime = data.time || 0;
+        controllerAudio.load();
+        controllerAudio.play().catch(() => { });
+        return;
+      }
+
+      if (data.mediaType === 'pdf') {
+        previewMediaNameEl.textContent = data.fileName || 'PDF Document';
+        previewStatusEl.textContent = 'Viewing';
+
+        // Show PDF container and load PDF
+        const pdfContainer = document.getElementById('controller-pdf-container');
+        if (pdfContainer) {
+          pdfContainer.classList.add('active');
+        }
+        loadPdfDocument(data.fileUrl, data.pdfPage || 1, data.pdfZoom || 1);
+        return;
+      }
+    }
+
+    function playPreview() {
+      previewStatusEl.textContent = 'Playing';
+      lastPreviewState.playing = true;
+      if (previewMediaType === 'youtube' && previewYTReady && previewYTPlayer) {
+        previewYTPlayer.playVideo();
+      } else if (previewMediaType === 'local_video') {
+        controllerNativeVideo.play().catch(() => { });
+      } else if (previewMediaType === 'local_audio') {
+        controllerAudio.play().catch(() => { });
+      }
+    }
+
+    function pausePreview() {
+      previewStatusEl.textContent = 'Paused';
+      lastPreviewState.playing = false;
+      if (previewMediaType === 'youtube' && previewYTReady && previewYTPlayer) {
+        previewYTPlayer.pauseVideo();
+      } else if (previewMediaType === 'local_video') {
+        controllerNativeVideo.pause();
+      } else if (previewMediaType === 'local_audio') {
+        controllerAudio.pause();
+      }
+    }
+
+    function seekPreview(time) {
+      updatePreviewTimeDisplay(time);
+      if (previewMediaType === 'youtube' && previewYTReady && previewYTPlayer) {
+        previewYTPlayer.seekTo(time, true);
+      } else if (previewMediaType === 'local_video') {
+        controllerNativeVideo.currentTime = time;
+      } else if (previewMediaType === 'local_audio') {
+        controllerAudio.currentTime = time;
+      }
+    }
+
+    function stopPreview() {
+      previewStatusEl.textContent = 'Idle';
+      previewMediaNameEl.textContent = 'No media loaded';
+      previewTypeEl.textContent = 'Type: none';
+      updatePreviewTimeDisplay(0);
+      previewMediaType = null;
+      hideAllPreviewPlayers();
+    }
+
+    // Attach HTML5 media listeners once to mirror manual preview interactions
+    // These immediately send commands to clients when user interacts with preview
+    controllerNativeVideo.addEventListener('play', () => {
+      if (!isHost || previewMediaType !== 'local_video') return;
+      if (isApplyingRemoteCommand) return; // Ignore if this is from a received command
+      lastPreviewState.playing = true;
+      socket.emit('command', { type: 'play' });
+    });
+
+    controllerNativeVideo.addEventListener('pause', () => {
+      if (!isHost || previewMediaType !== 'local_video') return;
+      if (isApplyingRemoteCommand) return;
+      if (controllerNativeVideo.ended) return; // Ignore pause at end
+      lastPreviewState.playing = false;
+      socket.emit('command', { type: 'pause' });
+    });
+
+    controllerNativeVideo.addEventListener('seeked', () => {
+      if (!isHost || previewMediaType !== 'local_video') return;
+      if (isApplyingRemoteCommand) return;
+      const t = controllerNativeVideo.currentTime || 0;
+      updatePreviewTimeDisplay(t);
+      // Emit seek command to clients
+      socket.emit('command', { type: 'seek', time: t });
+    });
+
+    controllerAudio.addEventListener('play', () => {
+      if (!isHost || previewMediaType !== 'local_audio') return;
+      if (isApplyingRemoteCommand) return;
+      lastPreviewState.playing = true;
+      socket.emit('command', { type: 'play' });
+    });
+
+    controllerAudio.addEventListener('pause', () => {
+      if (!isHost || previewMediaType !== 'local_audio') return;
+      if (isApplyingRemoteCommand) return;
+      if (controllerAudio.ended) return;
+      lastPreviewState.playing = false;
+      socket.emit('command', { type: 'pause' });
+    });
+
+    controllerAudio.addEventListener('seeked', () => {
+      if (!isHost || previewMediaType !== 'local_audio') return;
+      if (isApplyingRemoteCommand) return;
+      const t = controllerAudio.currentTime || 0;
+      updatePreviewTimeDisplay(t);
+      // Emit seek command to clients
+      socket.emit('command', { type: 'seek', time: t });
+    });
+
+    // Add timeupdate listeners to keep preview time display accurate
+    controllerNativeVideo.addEventListener('timeupdate', () => {
+      if (previewMediaType === 'local_video') {
+        updatePreviewTimeDisplay(controllerNativeVideo.currentTime || 0);
+      }
+    });
+
+    controllerAudio.addEventListener('timeupdate', () => {
+      if (previewMediaType === 'local_audio') {
+        updatePreviewTimeDisplay(controllerAudio.currentTime || 0);
+      }
+    });
+
+    // ============================================
+    // PDF VIEWER FUNCTIONALITY
+    // ============================================
+
+    // Initialize PDF.js worker
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // PDF State
+    let pdfDoc = null;
+    let pdfCurrentPage = 1;
+    let pdfTotalPages = 0;
+    let pdfZoom = 1;
+    let pdfCurrentTool = 'laser';
+    let pdfPenColor = '#ff0000';
+    let pdfIsDrawing = false;
+    let pdfLastX = 0;
+    let pdfLastY = 0;
+
+    // PDF DOM elements
+    const pdfCanvas = document.getElementById('controller-pdf-canvas');
+    const pdfDrawCanvas = document.getElementById('controller-pdf-draw-canvas');
+    const pdfLaserEl = document.getElementById('controller-pdf-laser');
+    const pdfCtx = pdfCanvas ? pdfCanvas.getContext('2d') : null;
+    const pdfDrawCtx = pdfDrawCanvas ? pdfDrawCanvas.getContext('2d') : null;
+
+    // Load PDF document
+    async function loadPdfDocument(url, page = 1, zoom = 1) {
+      if (!pdfjsLib) {
+        console.error('[PDF] PDF.js library not loaded');
+        return;
+      }
+
+      try {
+        log(`Loading PDF: ${url}`);
+        
+        // Set preview media type to pdf
+        previewMediaType = 'pdf';
+        
+        // Show PDF container (hideAllPreviewPlayers may have been called before)
+        const pdfContainer = document.getElementById('controller-pdf-container');
+        if (pdfContainer) {
+          pdfContainer.classList.add('active');
+        }
+        
+        const loadingTask = pdfjsLib.getDocument(url);
+        pdfDoc = await loadingTask.promise;
+        pdfTotalPages = pdfDoc.numPages;
+        pdfCurrentPage = Math.min(page, pdfTotalPages);
+        pdfZoom = zoom;
+
+        document.getElementById('pdfTotalPages').textContent = pdfTotalPages;
+        updatePdfZoomDisplay();
+
+        await renderPdfPage(pdfCurrentPage);
+        log(`PDF loaded: ${pdfTotalPages} pages`);
+        
+        // Set laser as default tool
+        setPdfTool('laser');
+      } catch (error) {
+        console.error('[PDF] Load error:', error);
+        log(`PDF load error: ${error.message}`);
+      }
+    }
+
+    // Render a specific page with high quality
+    async function renderPdfPage(pageNum) {
+      if (!pdfDoc) return;
+
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        
+        // Calculate scale for good quality
+        const scale = pdfZoom * 1.5; // 1.5x for better quality
+        // Use rotation: 0 to ensure correct orientation
+        const viewport = page.getViewport({ scale: scale, rotation: 0 });
+
+        // Set canvas dimensions
+        pdfCanvas.width = viewport.width;
+        pdfCanvas.height = viewport.height;
+
+        // Also resize draw canvas to match
+        pdfDrawCanvas.width = viewport.width;
+        pdfDrawCanvas.height = viewport.height;
+
+        // Reset canvas context to ensure no leftover transforms
+        pdfCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+        const renderContext = {
+          canvasContext: pdfCtx,
+          viewport: viewport
+        };
+
+        await page.render(renderContext).promise;
+
+        document.getElementById('pdfCurrentPage').textContent = pageNum;
+        pdfCurrentPage = pageNum;
+
+        // Update preview time display to show page number
+        previewTimeEl.textContent = `Page: ${pageNum}/${pdfTotalPages}`;
+
+      } catch (error) {
+        console.error('[PDF] Render error:', error);
+      }
+    }
+
+    // Page navigation
+    function pdfPrevPage() {
+      if (!isHost || !pdfDoc || pdfCurrentPage <= 1) return;
+      // Clear annotations when changing pages
+      if (pdfDrawCtx) {
+        pdfDrawCtx.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
+      }
+      pdfCurrentPage--;
+      renderPdfPage(pdfCurrentPage);
+      socket.emit('pdf_page', { page: pdfCurrentPage });
+    }
+
+    function pdfNextPage() {
+      if (!isHost || !pdfDoc || pdfCurrentPage >= pdfTotalPages) return;
+      // Clear annotations when changing pages
+      if (pdfDrawCtx) {
+        pdfDrawCtx.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
+      }
+      pdfCurrentPage++;
+      renderPdfPage(pdfCurrentPage);
+      socket.emit('pdf_page', { page: pdfCurrentPage });
+    }
+
+    // Zoom controls
+    function pdfZoomIn() {
+      if (!isHost || !pdfDoc) return;
+      pdfZoom = Math.min(pdfZoom + 0.25, 3);
+      updatePdfZoomDisplay();
+      renderPdfPage(pdfCurrentPage);
+      socket.emit('pdf_zoom', { zoom: pdfZoom });
+    }
+
+    function pdfZoomOut() {
+      if (!isHost || !pdfDoc) return;
+      pdfZoom = Math.max(pdfZoom - 0.25, 0.5);
+      updatePdfZoomDisplay();
+      renderPdfPage(pdfCurrentPage);
+      socket.emit('pdf_zoom', { zoom: pdfZoom });
+    }
+
+    function pdfResetZoom() {
+      if (!isHost || !pdfDoc) return;
+      pdfZoom = 1;
+      updatePdfZoomDisplay();
+      renderPdfPage(pdfCurrentPage);
+      socket.emit('pdf_zoom', { zoom: pdfZoom });
+    }
+
+    function updatePdfZoomDisplay() {
+      document.getElementById('pdfZoomLevel').textContent = `${Math.round(pdfZoom * 100)}%`;
+    }
+
+    // Sync PDF state to all clients
+    function pdfSyncAll() {
+      if (!isHost || !pdfDoc) return;
+      
+      // Emit current page and zoom to all clients
+      socket.emit('pdf_page', { page: pdfCurrentPage });
+      socket.emit('pdf_zoom', { zoom: pdfZoom });
+      
+      // Also use the global sync command to refresh state
+      socket.emit('command', { type: 'sync' });
+      
+      log(`PDF synced: Page ${pdfCurrentPage}, Zoom ${Math.round(pdfZoom * 100)}%`);
+    }
+
+    // Tool selection
+    function setPdfTool(tool) {
+      if (!isHost) return;
+      pdfCurrentTool = tool;
+
+      // Update button states
+      document.querySelectorAll('.pdf-tool-btn[id^="pdfTool"]').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      const activeBtn = document.getElementById(`pdfTool${tool.charAt(0).toUpperCase() + tool.slice(1)}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      // Update cursor and pointer events
+      if (tool === 'laser') {
+        pdfDrawCanvas.style.cursor = 'none';
+        pdfDrawCanvas.style.pointerEvents = 'auto';
+      } else {
+        pdfDrawCanvas.style.cursor = 'crosshair';
+        pdfDrawCanvas.style.pointerEvents = 'auto';
+      }
+      
+      // Hide laser when switching away from laser tool
+      if (tool !== 'laser') {
+        pdfLaserEl.classList.remove('active');
+        socket.emit('pdf_laser', { visible: false });
+      }
+    }
+
+    function setPdfPenColor(color) {
+      pdfPenColor = color;
+    }
+
+    // Drawing on PDF
+    if (pdfDrawCanvas) {
+      pdfDrawCanvas.addEventListener('mousedown', (e) => {
+        if (!isHost || previewMediaType !== 'pdf') return;
+
+        if (pdfCurrentTool === 'laser') {
+          updateLaserPosition(e);
+          pdfLaserEl.classList.add('active');
+          return;
+        }
+
+        pdfIsDrawing = true;
+        const rect = pdfDrawCanvas.getBoundingClientRect();
+        pdfLastX = e.clientX - rect.left;
+        pdfLastY = e.clientY - rect.top;
+      });
+
+      pdfDrawCanvas.addEventListener('mousemove', (e) => {
+        if (!isHost || previewMediaType !== 'pdf') return;
+
+        const rect = pdfDrawCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (pdfCurrentTool === 'laser') {
+          updateLaserPosition(e);
+          // Show laser on controller
+          pdfLaserEl.classList.add('active');
+          // Send laser position to clients
+          socket.emit('pdf_laser', {
+            x: x / pdfDrawCanvas.width,
+            y: y / pdfDrawCanvas.height,
+            visible: true
+          });
+          return;
+        }
+
+        if (!pdfIsDrawing) return;
+
+        // Draw on canvas
+        pdfDrawCtx.beginPath();
+        pdfDrawCtx.moveTo(pdfLastX, pdfLastY);
+        pdfDrawCtx.lineTo(x, y);
+
+        if (pdfCurrentTool === 'pen') {
+          pdfDrawCtx.strokeStyle = pdfPenColor;
+          pdfDrawCtx.lineWidth = 3;
+          pdfDrawCtx.globalAlpha = 1;
+        } else if (pdfCurrentTool === 'highlight') {
+          pdfDrawCtx.strokeStyle = pdfPenColor;
+          pdfDrawCtx.lineWidth = 20;
+          pdfDrawCtx.globalAlpha = 0.3;
+        }
+
+        pdfDrawCtx.lineCap = 'round';
+        pdfDrawCtx.lineJoin = 'round';
+        pdfDrawCtx.stroke();
+        pdfDrawCtx.globalAlpha = 1;
+
+        // Send drawing data to clients
+        socket.emit('pdf_draw', {
+          type: 'stroke',
+          tool: pdfCurrentTool,
+          color: pdfPenColor,
+          fromX: pdfLastX / pdfDrawCanvas.width,
+          fromY: pdfLastY / pdfDrawCanvas.height,
+          toX: x / pdfDrawCanvas.width,
+          toY: y / pdfDrawCanvas.height
+        });
+
+        pdfLastX = x;
+        pdfLastY = y;
+      });
+
+      pdfDrawCanvas.addEventListener('mouseup', () => {
+        pdfIsDrawing = false;
+        if (pdfCurrentTool === 'laser') {
+          pdfLaserEl.classList.remove('active');
+          socket.emit('pdf_laser', { visible: false });
+        }
+      });
+
+      pdfDrawCanvas.addEventListener('mouseleave', () => {
+        pdfIsDrawing = false;
+        if (pdfCurrentTool === 'laser') {
+          pdfLaserEl.classList.remove('active');
+          socket.emit('pdf_laser', { visible: false });
+        }
+      });
+
+      // Touch events for mobile
+      pdfDrawCanvas.addEventListener('touchstart', (e) => {
+        if (!isHost || previewMediaType !== 'pdf') return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = pdfDrawCanvas.getBoundingClientRect();
+        pdfLastX = touch.clientX - rect.left;
+        pdfLastY = touch.clientY - rect.top;
+        pdfIsDrawing = true;
+      });
+
+      pdfDrawCanvas.addEventListener('touchmove', (e) => {
+        if (!isHost || previewMediaType !== 'pdf' || !pdfIsDrawing) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = pdfDrawCanvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+
+        pdfDrawCtx.beginPath();
+        pdfDrawCtx.moveTo(pdfLastX, pdfLastY);
+        pdfDrawCtx.lineTo(x, y);
+
+        if (pdfCurrentTool === 'pen') {
+          pdfDrawCtx.strokeStyle = pdfPenColor;
+          pdfDrawCtx.lineWidth = 3;
+          pdfDrawCtx.globalAlpha = 1;
+          pdfDrawCtx.globalCompositeOperation = 'source-over';
+        } else if (pdfCurrentTool === 'highlight') {
+          // Highlighter effect with selected color
+          pdfDrawCtx.strokeStyle = pdfPenColor;
+          pdfDrawCtx.lineWidth = 18;
+          pdfDrawCtx.globalAlpha = 0.35;
+          pdfDrawCtx.globalCompositeOperation = 'multiply';
+        }
+
+        pdfDrawCtx.lineCap = 'round';
+        pdfDrawCtx.lineJoin = 'round';
+        pdfDrawCtx.stroke();
+        pdfDrawCtx.globalAlpha = 1;
+        pdfDrawCtx.globalCompositeOperation = 'source-over';
+
+        socket.emit('pdf_draw', {
+          type: 'stroke',
+          tool: pdfCurrentTool,
+          color: pdfPenColor,
+          fromX: pdfLastX / pdfDrawCanvas.width,
+          fromY: pdfLastY / pdfDrawCanvas.height,
+          toX: x / pdfDrawCanvas.width,
+          toY: y / pdfDrawCanvas.height
+        });
+
+        pdfLastX = x;
+        pdfLastY = y;
+      });
+
+      pdfDrawCanvas.addEventListener('touchend', () => {
+        pdfIsDrawing = false;
+      });
+    }
+
+    function updateLaserPosition(e) {
+      const rect = pdfDrawCanvas.getBoundingClientRect();
+      const wrapper = document.querySelector('.pdf-viewer-wrapper');
+      if (!wrapper) return;
+
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const x = e.clientX - wrapperRect.left;
+      const y = e.clientY - wrapperRect.top;
+
+      pdfLaserEl.style.left = `${x}px`;
+      pdfLaserEl.style.top = `${y}px`;
+    }
+
+    // Clear annotations
+    function pdfClearAnnotations() {
+      if (!isHost) return;
+      if (pdfDrawCtx) {
+        pdfDrawCtx.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
+      }
+      socket.emit('pdf_clear', {});
+      log('PDF annotations cleared');
+    }
+
+    // PDF Scroll sync - add debounced scroll listener
+    (function initPdfScrollSync() {
+      const wrapper = document.querySelector('.pdf-viewer-wrapper');
+      if (wrapper) {
+        let scrollTimeout;
+        wrapper.addEventListener('scroll', () => {
+          if (!isHost || previewMediaType !== 'pdf') return;
+          
+          // Debounce scroll events
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            socket.emit('pdf_scroll', {
+              scrollTop: wrapper.scrollTop / wrapper.scrollHeight,
+              scrollLeft: wrapper.scrollLeft / wrapper.scrollWidth
+            });
+          }, 50);
+        });
+      }
+    })();
+
+    // Handle PDF sync from server (for non-host controllers)
+    socket.on('pdf_page', (data) => {
+      if (!isHost && previewMediaType === 'pdf' && pdfDoc) {
+        pdfCurrentPage = data.page;
+        renderPdfPage(pdfCurrentPage);
+      }
+    });
+
+    socket.on('pdf_zoom', (data) => {
+      if (!isHost && previewMediaType === 'pdf' && pdfDoc) {
+        pdfZoom = data.zoom;
+        updatePdfZoomDisplay();
+        renderPdfPage(pdfCurrentPage);
+      }
+    });
+
+    socket.on('pdf_clear', () => {
+      if (pdfDrawCtx) {
+        pdfDrawCtx.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
+      }
+    });
 
     // Tab Switching
     function switchTab(tab) {
+      if (!isHost) {
+        log("You are not the host for this IP. Controls are view-only.");
+        return;
+      }
+
       currentTab = tab;
-      
+
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-      
+
       event.target.classList.add('active');
       document.getElementById(`${tab}-tab`).classList.add('active');
-      
+
       log(`Switched to ${tab.toUpperCase()} mode`);
     }
 
     // File Selection
     function handleFileSelect(input, type) {
+      if (!isHost) {
+        log("You are not the host for this IP. File uploads are disabled.");
+        input.value = '';
+        return;
+      }
       const file = input.files[0];
       if (file) {
         selectedFiles[type] = file;
@@ -635,6 +2970,10 @@
 
     // File Upload
     async function uploadFile(type) {
+      if (!isHost) {
+        log("You are not the host for this IP. Upload is disabled.");
+        return;
+      }
       const file = selectedFiles[type];
       if (!file) return;
 
@@ -643,12 +2982,12 @@
 
       const progressDiv = document.getElementById(`${type}UploadProgress`);
       const progressFill = document.getElementById(`${type}ProgressFill`);
-      
+
       progressDiv.classList.add('active');
-      
+
       try {
         const xhr = new XMLHttpRequest();
-        
+
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             const percent = (e.loaded / e.total) * 100;
@@ -660,18 +2999,28 @@
           if (xhr.status === 200) {
             const response = JSON.parse(xhr.responseText);
             log(`Upload complete: ${response.file.originalName}`);
+
+            // Load the file immediately based on type
+            let mediaType;
+            if (type === 'video') {
+              mediaType = 'local_video';
+            } else if (type === 'audio') {
+              mediaType = 'local_audio';
+            } else if (type === 'pdf') {
+              mediaType = 'pdf';
+            } else {
+              mediaType = response.file.type; // Use server-detected type
+            }
             
-            // Load the file immediately
-            const mediaType = type === 'video' ? 'local_video' : 'local_audio';
             socket.emit('command', {
               type: 'load',
               mediaType: mediaType,
               fileUrl: response.file.url,
               fileName: response.file.originalName
             });
-            
-            log(`Playing ${type}: ${response.file.originalName}`);
-            
+
+            log(`${type === 'pdf' ? 'Viewing' : 'Playing'} ${type}: ${response.file.originalName}`);
+
             // Reset
             progressDiv.classList.remove('active');
             progressFill.style.width = '0%';
@@ -680,7 +3029,7 @@
             document.getElementById(`${type}FileName`).textContent = `Choose ${type.charAt(0).toUpperCase() + type.slice(1)} File`;
             document.getElementById(`${type}FileLabel`).classList.remove('has-file');
             document.getElementById(`upload${type.charAt(0).toUpperCase() + type.slice(1)}Btn`).disabled = true;
-            
+
             loadFileList(type);
           } else {
             throw new Error('Upload failed');
@@ -694,7 +3043,7 @@
 
         xhr.open('POST', '/api/upload');
         xhr.send(formData);
-        
+
       } catch (error) {
         log(`Upload failed: ${error.message}`);
         progressDiv.classList.remove('active');
@@ -706,19 +3055,20 @@
       try {
         const res = await fetch('/api/files');
         const data = await res.json();
-        
-        const mediaType = type === 'video' ? 'local_video' : 'local_audio';
+
+        const typeMap = { video: 'local_video', audio: 'local_audio', pdf: 'pdf' };
+        const mediaType = typeMap[type] || type;
         const files = data.files.filter(f => f.type === mediaType);
-        
+
         const listDiv = document.getElementById(`${type}FileList`);
-        
+
         if (files.length === 0) {
           listDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No files uploaded yet</div>';
           return;
         }
-        
+
         listDiv.innerHTML = '';
-        
+
         files.forEach(file => {
           const item = document.createElement('div');
           item.className = 'file-item';
@@ -734,9 +3084,9 @@
           `;
           listDiv.appendChild(item);
         });
-        
+
         log(`Loaded ${files.length} ${type} file(s)`);
-        
+
       } catch (error) {
         console.error('Error loading files:', error);
         const listDiv = document.getElementById(`${type}FileList`);
@@ -747,10 +3097,10 @@
     // Refresh Files - Force reload from server
     async function refreshFiles(type) {
       log(`Refreshing ${type} files from disk...`);
-      
+
       const listDiv = document.getElementById(`${type}FileList`);
       listDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #888;"><div style="display: inline-block; animation: spin 1s linear infinite;">⟳</div> Scanning uploads folder...</div>';
-      
+
       // Add CSS for spin animation if not exists
       if (!document.getElementById('spin-style')) {
         const style = document.createElement('style');
@@ -758,21 +3108,21 @@
         style.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
         document.head.appendChild(style);
       }
-      
+
       try {
         // Call rescan endpoint to force server to re-read uploads folder
         const rescanRes = await fetch('/api/files/rescan', { method: 'POST' });
         const rescanData = await rescanRes.json();
-        
+
         if (rescanData.success) {
           log(`Scan complete: Found ${rescanData.count} total files (${rescanData.newFiles >= 0 ? '+' : ''}${rescanData.newFiles} change)`);
         }
-        
+
         // Wait a bit to show loading animation
         setTimeout(async () => {
           await loadFileList(type);
         }, 300);
-        
+
       } catch (error) {
         log(`❌ Refresh failed: ${error.message}`);
         listDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #f00;">Refresh failed</div>';
@@ -781,6 +3131,11 @@
 
     // Play File
     function playFile(fileUrl, mediaType, fileName) {
+      if (!isHost) {
+        log("You are not the host for this IP. Playback control is disabled.");
+        return;
+      }
+
       socket.emit('command', {
         type: 'load',
         mediaType: mediaType,
@@ -792,8 +3147,12 @@
 
     // Delete File
     async function deleteFile(fileId, type) {
+      if (!isHost) {
+        log("You are not the host for this IP. Delete is disabled.");
+        return;
+      }
       if (!confirm('Delete this file? It will stop playing on all clients if currently active.')) return;
-      
+
       try {
         const res = await fetch(`/api/files/${fileId}`, { method: 'DELETE' });
         if (res.ok) {
@@ -818,6 +3177,10 @@
     }
 
     function loadYouTube() {
+      if (!isHost) {
+        log("You are not the host for this IP. Playback control is disabled.");
+        return;
+      }
       const input = document.getElementById("videoInput").value.trim();
       if (!input) {
         alert("Please enter a YouTube URL or video ID.");
@@ -837,6 +3200,10 @@
 
     // Playback Commands
     function sendCommand(type) {
+      if (!isHost) {
+        log("You are not the host for this IP. Playback control is disabled.");
+        return;
+      }
       socket.emit("command", { type });
       const labels = {
         play: "Play command issued",
@@ -846,7 +3213,21 @@
       log(labels[type] || `Command sent: ${type}`);
     }
 
+    function seekBy(deltaSeconds) {
+      if (!isHost) {
+        log("You are not the host for this IP. Seek is disabled.");
+        return;
+      }
+      const next = Math.max(0, (previewCurrentTime || 0) + deltaSeconds);
+      socket.emit("command", { type: "seek", time: next });
+      log(`Seek by ${deltaSeconds} seconds to ${next.toFixed(2)}s`);
+    }
+
     function seek() {
+      if (!isHost) {
+        log("You are not the host for this IP. Seek is disabled.");
+        return;
+      }
       const time = parseFloat(document.getElementById("seekTime").value);
       if (isNaN(time) || time < 0) {
         alert("Please enter a valid non-negative time in seconds.");
@@ -859,6 +3240,17 @@
     }
 
     function syncAll() {
+      if (!isHost) {
+        log("You are not the host for this IP. Sync is disabled.");
+        return;
+      }
+      
+      // For PDF, also emit specific page and zoom sync
+      if (previewMediaType === 'pdf' && pdfDoc) {
+        socket.emit('pdf_page', { page: pdfCurrentPage });
+        socket.emit('pdf_zoom', { zoom: pdfZoom });
+      }
+      
       socket.emit("command", { type: "sync" });
       log("Sync command sent to all clients");
     }
@@ -869,14 +3261,101 @@
       document.getElementById("controllerCount").textContent = data.controllers || 0;
     });
 
+    // Host status updates from server – only one host per IP can control
+    socket.on("host_status", (data) => {
+      isHost = !!data.isHost;
+      if (isHost) {
+        log(`You are HOST for IP ${data.ip}. Controls enabled.`);
+      } else {
+        log(`Another tab/device from IP ${data.ip} is host. This controller is view-only.`);
+      }
+      setControlEnabled(isHost);
+    });
+
+    // Mirror commands and state from server into controller preview
+    socket.on("command", (data) => {
+      console.log("[Controller] Command received for preview:", data);
+      // Set flag and clear any previous timeout
+      isApplyingRemoteCommand = true;
+      if (commandLockTimeout) clearTimeout(commandLockTimeout);
+
+      try {
+        switch (data.type) {
+          case "load":
+            loadPreviewMedia(data);
+            break;
+          case "play":
+            playPreview();
+            break;
+          case "pause":
+            pausePreview();
+            break;
+          case "seek":
+            seekPreview(data.time || 0);
+            break;
+          case "restart":
+            seekPreview(0);
+            playPreview();
+            break;
+          case "stop":
+            stopPreview();
+            break;
+        }
+      } catch (e) {
+        console.error("[Controller] Error applying command to preview", e);
+      }
+
+      // Keep the command lock active for a bit longer to handle async media events
+      commandLockTimeout = setTimeout(() => {
+        isApplyingRemoteCommand = false;
+      }, 500);
+    });
+
+    socket.on("current_state", (state) => {
+      console.log("[Controller] current_state for preview:", state);
+      // Set flag and clear any previous timeout
+      isApplyingRemoteCommand = true;
+      if (commandLockTimeout) clearTimeout(commandLockTimeout);
+
+      try {
+        if (state.mediaType) {
+          loadPreviewMedia({
+            type: "load",
+            mediaType: state.mediaType,
+            videoId: state.videoId,
+            fileUrl: state.fileUrl,
+            fileName: state.fileName,
+            time: state.time
+          });
+          if (state.isPlaying) {
+            playPreview();
+          } else {
+            pausePreview();
+          }
+        } else {
+          stopPreview();
+        }
+      } catch (e) {
+        console.error("[Controller] Error applying state to preview", e);
+      }
+
+      // Keep the command lock active for a bit longer to handle async media events
+      commandLockTimeout = setTimeout(() => {
+        isApplyingRemoteCommand = false;
+      }, 500);
+    });
+
     socket.on("connect", () => log("Connected to server"));
     socket.on("disconnect", () => log("Disconnected from server"));
 
     // Listen for file system changes
     socket.on("file_added", (fileInfo) => {
       log(`New file detected: ${fileInfo.originalName}`);
-      const type = fileInfo.type === 'local_video' ? 'video' : 'audio';
-      
+      let type = 'video';
+      if (fileInfo.type === 'local_video') type = 'video';
+      else if (fileInfo.type === 'local_audio') type = 'audio';
+      else if (fileInfo.type === 'pdf') type = 'pdf';
+
       // Only reload if we're on the correct tab
       if (currentTab === type || currentTab === 'youtube') {
         loadFileList(type);
@@ -887,6 +3366,7 @@
       log(`File removed externally: ${data.filename}`);
       loadFileList('video');
       loadFileList('audio');
+      loadFileList('pdf');
     });
 
     // Logging
@@ -937,20 +3417,282 @@
       }
     });
 
+    // Global keyboard shortcuts for PDF navigation
+    document.addEventListener("keydown", e => {
+      // Only handle if PDF is active and not typing in an input
+      if (previewMediaType !== 'pdf' || !pdfDoc) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      switch (e.key) {
+        case 'ArrowLeft':
+        case 'PageUp':
+          e.preventDefault();
+          pdfPrevPage();
+          break;
+        case 'ArrowRight':
+        case 'PageDown':
+        case ' ':
+          e.preventDefault();
+          pdfNextPage();
+          break;
+        case 'Home':
+          e.preventDefault();
+          if (isHost && pdfDoc && pdfCurrentPage !== 1) {
+            // Clear annotations when changing pages
+            if (pdfDrawCtx) {
+              pdfDrawCtx.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
+            }
+            pdfCurrentPage = 1;
+            renderPdfPage(pdfCurrentPage);
+            socket.emit('pdf_page', { page: pdfCurrentPage });
+          }
+          break;
+        case 'End':
+          e.preventDefault();
+          if (isHost && pdfDoc && pdfCurrentPage !== pdfTotalPages) {
+            // Clear annotations when changing pages
+            if (pdfDrawCtx) {
+              pdfDrawCtx.clearRect(0, 0, pdfDrawCanvas.width, pdfDrawCanvas.height);
+            }
+            pdfCurrentPage = pdfTotalPages;
+            renderPdfPage(pdfCurrentPage);
+            socket.emit('pdf_page', { page: pdfCurrentPage });
+          }
+          break;
+        case '+':
+        case '=':
+          e.preventDefault();
+          pdfZoomIn();
+          break;
+        case '-':
+          e.preventDefault();
+          pdfZoomOut();
+          break;
+        case '0':
+          e.preventDefault();
+          pdfResetZoom();
+          break;
+      }
+    });
+
     // Initialize
     loadQRCodes();
     loadFileList('video');
     loadFileList('audio');
+    loadFileList('pdf');
     log("Controller initialized. Awaiting client connections.");
-    
+
     // Refresh file lists every 30 seconds to catch any changes
     setInterval(() => {
       if (currentTab === 'video') {
         loadFileList('video');
       } else if (currentTab === 'audio') {
         loadFileList('audio');
+      } else if (currentTab === 'pdf') {
+        loadFileList('pdf');
       }
     }, 30000);
+
+    // ============================================
+    // EMBEDDED CHAT FUNCTIONALITY
+    // ============================================
+    let chatOpen = false;
+    let chatUnreadCount = 0;
+    let chatInitialized = false;
+
+    // Lazy element getters (elements are added after script)
+    function getChatElements() {
+      return {
+        panel: document.getElementById('chatPanel'),
+        overlay: document.getElementById('chatOverlay'),
+        messages: document.getElementById('chatMessages'),
+        input: document.getElementById('chatInput'),
+        badge: document.getElementById('chatUnreadBadge'),
+        online: document.getElementById('chatOnlineCount')
+      };
+    }
+
+    function toggleChat() {
+      const els = getChatElements();
+      chatOpen = !chatOpen;
+      els.panel.classList.toggle('show', chatOpen);
+      els.overlay.classList.toggle('show', chatOpen);
+      document.body.classList.toggle('chat-active', chatOpen);
+
+      if (chatOpen) {
+        // Initialize chat on first open
+        if (!chatInitialized) {
+          socket.emit('identify_chat', { name: controllerName, role: 'controller' });
+          chatInitialized = true;
+        }
+        // Reset unread count
+        chatUnreadCount = 0;
+        updateChatBadge();
+        // Focus input
+        setTimeout(() => els.input.focus(), 300);
+        // Scroll to bottom
+        els.messages.scrollTop = els.messages.scrollHeight;
+      }
+    }
+
+    function closeChat() {
+      const els = getChatElements();
+      chatOpen = false;
+      els.panel.classList.remove('show');
+      els.overlay.classList.remove('show');
+      document.body.classList.remove('chat-active');
+    }
+
+    function updateChatBadge() {
+      const els = getChatElements();
+      if (chatUnreadCount > 0) {
+        els.badge.textContent = chatUnreadCount > 99 ? '99+' : chatUnreadCount;
+        els.badge.classList.add('show');
+      } else {
+        els.badge.classList.remove('show');
+      }
+    }
+
+    function sendChatMessage() {
+      const els = getChatElements();
+      const message = els.input.value.trim();
+      if (!message) return;
+
+      socket.emit('chat_send', { message });
+      els.input.value = '';
+    }
+
+    function formatChatTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function escapeHtmlChat(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function addChatMessage(data) {
+      const els = getChatElements();
+      // Remove empty state if exists
+      const emptyEl = els.messages.querySelector('.chat-empty');
+      if (emptyEl) emptyEl.remove();
+
+      const isOutgoing = data.senderId === socket.id;
+      const msgEl = document.createElement('div');
+      msgEl.className = `chat-msg ${isOutgoing ? 'outgoing' : 'incoming'}`;
+
+      const roleLabel = data.senderRole.toUpperCase();
+
+      msgEl.innerHTML = `
+        <div class="chat-msg-header">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="chat-msg-sender">${isOutgoing ? 'You' : escapeHtmlChat(data.senderName)}</span>
+            <span class="chat-msg-role">${roleLabel}</span>
+          </div>
+          <span class="chat-msg-time">${formatChatTime(data.timestamp)}</span>
+        </div>
+        <div class="chat-msg-text">${escapeHtmlChat(data.message)}</div>
+      `;
+
+      els.messages.appendChild(msgEl);
+      els.messages.scrollTop = els.messages.scrollHeight;
+
+      // Update unread if chat is closed and not our message
+      if (!chatOpen && !isOutgoing) {
+        chatUnreadCount++;
+        updateChatBadge();
+      }
+    }
+
+    function addChatSystemMessage(text) {
+      const els = getChatElements();
+      const emptyEl = els.messages.querySelector('.chat-empty');
+      if (emptyEl) emptyEl.remove();
+
+      const msgEl = document.createElement('div');
+      msgEl.className = 'chat-system-msg';
+      msgEl.textContent = text;
+      els.messages.appendChild(msgEl);
+      els.messages.scrollTop = els.messages.scrollHeight;
+    }
+
+    // Chat socket events
+    socket.on('chat_broadcast', (data) => {
+      addChatMessage(data);
+    });
+
+    socket.on('chat_online_count', (count) => {
+      const els = getChatElements();
+      if (els.online) els.online.textContent = count;
+    });
+
+    socket.on('chat_user_joined', (data) => {
+      addChatSystemMessage(`${data.name} joined the chat`);
+    });
+
+    socket.on('chat_user_left', (data) => {
+      addChatSystemMessage(`${data.name} left the chat`);
+    });
+
+    // Initialize Enter key listener after DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const els = getChatElements();
+      if (els.input) {
+        els.input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            sendChatMessage();
+          }
+        });
+      }
+    });
+
   </script>
+
+  <!-- Chat Button -->
+  <button class="chat-btn" id="chatBtn" onclick="toggleChat()" title="Open Chat">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+      <path d="M7 9h10v2H7zm0-3h10v2H7z" />
+    </svg>
+    <span class="unread-badge" id="chatUnreadBadge">0</span>
+  </button>
+
+  <!-- Chat Overlay -->
+  <div class="chat-overlay" id="chatOverlay" onclick="closeChat()"></div>
+
+  <!-- Chat Panel -->
+  <div class="chat-panel" id="chatPanel">
+    <div class="chat-panel-header">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"
+          style="vertical-align: middle; margin-right: 8px;">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+        </svg>
+        Chat <span class="online-count">(<span id="chatOnlineCount">0</span> online)</span>
+      </h3>
+      <button class="chat-close-btn" onclick="closeChat()">×</button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="#666" style="margin-bottom: 12px;">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+        </svg>
+        <p>No messages yet</p>
+        <p style="font-size: 0.8rem; margin-top: 4px;">Start a conversation!</p>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." maxlength="500">
+      <button class="chat-send-btn" onclick="sendChatMessage()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#000000">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+        </svg>
+      </button>
+    </div>
+  </div>
 </body>
+
 </html>

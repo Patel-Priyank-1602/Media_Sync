@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Media Sync Chat</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .chat-header {
+            padding: 16px 20px;
+            background: #0a0a0a;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-header h1 span {
+            font-size: 1.5rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-name {
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .user-name strong {
+            color: #fff;
+        }
+
+        .online-count {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .online-count span {
+            color: #0f0;
+            font-weight: 600;
+        }
+
+        /* Messages Container */
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .messages-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        /* Message Bubble */
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            position: relative;
+        }
+
+        .message.incoming {
+            align-self: flex-start;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.outgoing {
+            align-self: flex-end;
+            background: #fff;
+            color: #000;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            gap: 12px;
+        }
+
+        .sender-name {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .message.incoming .sender-name {
+            color: #888;
+        }
+
+        .message.outgoing .sender-name {
+            color: #666;
+        }
+
+        .sender-role {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .sender-role.controller {
+            background: rgba(255, 255, 255, 0.1);
+            color: #aaa;
+        }
+
+        .sender-role.client {
+            background: rgba(255, 255, 255, 0.1);
+            color: #888;
+        }
+
+        .message.outgoing .sender-role {
+            background: rgba(0, 0, 0, 0.1);
+            color: #666;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            color: #666;
+        }
+
+        .message.outgoing .message-time {
+            color: #999;
+        }
+
+        .message-text {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        /* Input Container */
+        .input-container {
+            padding: 16px 20px;
+            background: #0a0a0a;
+            border-top: 1px solid #222;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 14px 20px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 30px;
+            color: #fff;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #fff;
+        }
+
+        .message-input::placeholder {
+            color: #666;
+        }
+
+        .send-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #fff;
+            border: none;
+            color: #000;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+            background: #eee;
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Empty State */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state h2 {
+            font-size: 1.2rem;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+        }
+
+        /* System Message */
+        .system-message {
+            text-align: center;
+            color: #666;
+            font-size: 0.8rem;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            align-self: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .chat-header {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+
+            .user-info {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .message {
+                max-width: 90%;
+            }
+
+            .input-container {
+                padding: 12px 16px;
+            }
+
+            .message-input {
+                padding: 12px 16px;
+                font-size: 0.95rem;
+            }
+
+            .send-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-header">
+        <h1><span>💬</span> Media Sync Chat</h1>
+        <div class="user-info">
+            <div class="user-name">Chatting as: <strong id="userName">Loading...</strong></div>
+            <div class="online-count"><span id="onlineCount">0</span> online</div>
+        </div>
+    </div>
+
+    <div class="messages-container" id="messagesContainer">
+        <div class="empty-state" id="emptyState">
+            <div class="empty-state-icon">💬</div>
+            <h2>No messages yet</h2>
+            <p>Be the first to say something!</p>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <input type="text" class="message-input" id="messageInput" placeholder="Type your message..." maxlength="500"
+            autocomplete="off">
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+    </div>
+
+    <script>
+        // Get user name from URL params or prompt
+        const urlParams = new URLSearchParams(window.location.search);
+        let userName = urlParams.get('name');
+        let userRole = urlParams.get('role') || 'client';
+
+        if (!userName) {
+            userName = prompt('Enter your name for the chat:', 'User');
+            if (!userName || userName.trim() === '') {
+                userName = 'User_' + Math.random().toString(36).substring(2, 8);
+            }
+        }
+
+        document.getElementById('userName').textContent = userName;
+
+        // Socket connection
+        const socket = io();
+        let mySocketId = null;
+
+        socket.on('connect', () => {
+            mySocketId = socket.id;
+            socket.emit('identify_chat', { name: userName, role: userRole });
+        });
+
+        // Update online count
+        socket.on('chat_online_count', (count) => {
+            document.getElementById('onlineCount').textContent = count;
+        });
+
+        // Receive messages
+        socket.on('chat_broadcast', (data) => {
+            addMessage(data);
+        });
+
+        // Elements
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        const emptyState = document.getElementById('emptyState');
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            socket.emit('chat_send', { message });
+            messageInput.value = '';
+            messageInput.focus();
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function addMessage(data) {
+            // Remove empty state if exists
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const isOutgoing = data.senderId === mySocketId;
+
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
+
+            const roleClass = data.senderRole === 'controller' ? 'controller' : 'client';
+            const roleLabel = data.senderRole === 'controller' ? '🎮 Controller' : '📱 Client';
+
+            messageEl.innerHTML = `
+        <div class="message-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="sender-name">${isOutgoing ? 'You' : escapeHtml(data.senderName)}</span>
+            <span class="sender-role ${roleClass}">${roleLabel}</span>
+          </div>
+          <span class="message-time">${formatTime(data.timestamp)}</span>
+        </div>
+        <div class="message-text">${escapeHtml(data.message)}</div>
+      `;
+
+            messagesContainer.appendChild(messageEl);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Add system message for join
+        function addSystemMessage(text) {
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const messageEl = document.createElement('div');
+            messageEl.className = 'system-message';
+            messageEl.textContent = text;
+            messagesContainer.appendChild(messageEl);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        socket.on('chat_user_joined', (data) => {
+            addSystemMessage(`${data.name} joined the chat`);
+        });
+
+        socket.on('chat_user_left', (data) => {
+            addSystemMessage(`${data.name} left the chat`);
+        });
+
+        // Send on Enter key
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Focus input on load
+        messageInput.focus();
+    </script>
+</body>
+
+</html>

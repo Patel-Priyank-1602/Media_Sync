@@ -1,6 +1,6 @@
-# Real-Time Sync Media Server (YouTube + Local Video + Local Audio)
+# Real-Time Sync Media Server (YouTube + Local Video + Local Audio + PPTX)
 
-This is a simple, self-hosted Node.js server designed to synchronize YouTube video, Local Video and Local Audio playback across multiple clients on a local network 🏠. It's perfect for creating a shared viewing experience where one person can control the video (play, pause, seek, load) for everyone else, all in real-time.
+This is a simple, self-hosted Node.js server designed to synchronize YouTube video, Local Video, Local Audio and PPTX Presentation playback across multiple clients on a local network 🏠. It's perfect for creating a shared viewing experience where one person can control the media (play, pause, seek, load, navigate slides) for everyone else, all in real-time.
 
 It features a web-based controller that generates QR codes 📱 for easy connection to your WiFi hotspot and for accessing the client/controller pages.
 
@@ -11,6 +11,12 @@ It features a web-based controller that generates QR codes 📱 for easy connect
 * **YouTube Sync:** Load any YouTube video using its URL or 11-character ID.
 * **Local Video Support:** Upload your own video files from the controller device. Files automatically get hosted and synced across clients.
 * **Local Audio Support:** Upload MP3/WAV audio files and play them in sync across all clients.
+* **PPTX Presentation Sync:** Upload PowerPoint presentations and sync slide navigation, zoom, and annotations in real-time.
+  * Navigate between slides (Previous/Next/Go to specific slide)
+  * Zoom controls (50%, 75%, 100%, 150%, 200%)
+  * Drawing tools with color and width options
+  * Laser pointer for highlighting
+  * Clear annotations
 * **Core Controls:** Supports **Play** ▶️, **Pause** ⏸️, **Seek** ⏩, and **Restart** ⏮️.
 * **Easy Setup:** Uses a simple `config.json` file to manage WiFi credentials.
 * **QR Code Access:**
