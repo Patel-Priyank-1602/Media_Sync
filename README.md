@@ -9,10 +9,32 @@ A self-hosted, lightweight Node.js server designed to synchronize media playback
 
 ---
 
-## 🚀 Key Features
+## 📌 Table of Contents
+
+- [🚀 Key Features](#key-features)
+- [📐 System Architecture & Workflow](#system-architecture--workflow)
+- [📂 Project Directory Map](#project-directory-map)
+- [🛠️ Installation & Configuration](#installation--configuration)
+  - [Prerequisites](#prerequisites)
+  - [Setup Instructions](#setup-instructions)
+  - [Auto-Configuring Network IPs](#auto-configuring-network-ips)
+- [🔌 REST API Documentation](#rest-api-documentation)
+  - [1. QR Code Services](#1-qr-code-services)
+  - [2. Session & Client Metrics](#2-session--client-metrics)
+  - [3. Uploads & Asset Management](#3-uploads--asset-management)
+- [⚡ WebSocket Event Protocol API](#websocket-event-protocol-api)
+  - [1. Connection & Identity Control](#1-connection--identity-control)
+  - [2. Media Sync & Playback Commands](#2-media-sync--playback-commands)
+  - [3. PDF Slides & Live Presentation Tools](#3-pdf-slides--live-presentation-tools)
+  - [4. Real-Time Chat Room Emitters](#4-real-time-chat-room-emitters)
+- [🐛 Troubleshooting & Sync Calibration](#troubleshooting--sync-calibration)
+
+---
+
+## <a id="key-features"></a>🚀 Key Features
 
 *   **📺 YouTube Sync:** Load and control any YouTube video using a standard URL or 11-character video ID.
-*   **📁 Local Video & Audio Streaming:** Upload media files directly from the controller device. The server hosts and streams them with full byte-range support.
+*   **📁 Local Video & Audio Streaming:** Upload media files directly from the controller device. The server hosts and streams them with custom HTTP byte-range support.
 *   **📄 PDF/Presentation Slide Sync:** Upload PDF documents (e.g., exported slides) and synchronize:
     *   Slide page navigation (Next, Previous, direct page jump).
     *   Viewport zoom levels (50% to 200%).
@@ -24,113 +46,95 @@ A self-hosted, lightweight Node.js server designed to synchronize media playback
 *   **💬 Real-Time Chat Engine:** Integrated sidebar chat inside client and controller panels, as well as a standalone chat view, allowing all participants to communicate.
 *   **📱 WiFi Hotspot & Connection QR Codes:** Auto-generates QR codes for connecting to the server's local WiFi and directly accessing the client/controller pages.
 *   **📝 Automated Session Logging:** Logs all server activity (joins, play/seek commands, uploads, chat history) and saves a structured timestamped report to the server root upon graceful shutdown.
+*   **👁️ Upload Watcher Service:** Monitors the `/uploads` directory using a filesystem watcher. It auto-updates the index and shuts down playback automatically if the currently playing file is removed.
 
 ---
 
-## 🛠️ Tech Stack
+## <a id="system-architecture--workflow"></a>📐 System Architecture & Workflow
 
-*   **Backend:** Node.js, Express, Socket.IO, Multer (file uploads), QRCode (QR generator)
-*   **Frontend:** Vanilla HTML5, CSS3 Custom Properties (Dark/Black Theme), Vanilla JavaScript, jQuery, PDF.js (Client-side PDF rendering)
-
----
-
-## 📐 System Architecture & Flow Diagrams
-
-### 1. Client Connection & Admission Flow
-New spectator clients are held in a pending queue until the Host Controller grants admission. This prevents unauthorized devices on the local network from disrupting a session.
+The following comprehensive sequence diagram illustrates the entire system lifecycle: from gated connection admission and single-host promotion to media control, PDF presentation tools, and chat messaging.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Client as Spectator Client
-    actor Controller as Host Controller
+    actor Host as Host Controller
+    actor Backup as Secondary Controller
     participant Server as Sync Server
 
-    Client->>Server: Connects via Socket.io
-    Client->>Server: emit("identify", { role: "client", name: "iPad Spectator" })
-    Note over Server: Register IP & place in pending queue
-    Server->>Client: emit("waiting_for_permission")
-    Server->>Controller: emit("join_request", { socketId, name, ip })
-    Server->>Controller: emit("pending_count", { count })
-    
-    alt Connection Approved
-        Controller->>Server: emit("approve_client", { socketId })
-        Note over Server: Move Client to active registry
+    %% Phase 1: Connection & Gated Admission
+    rect rgb(30, 30, 40)
+        Note over Client, Server: Phase 1: Connection & Gated Admission
+        Client->>Server: HTTP Handshake / Socket Connection
+        Client->>Server: emit("identify", { role: "client", name: "Guest" })
+        Note over Server: Check IP blocklist & place in pending registry
+        Server->>Client: emit("waiting_for_permission")
+        Server->>Host: emit("join_request", { socketId, name, ip })
+        Server->>Host: emit("pending_count", { count })
+        Host->>Server: emit("approve_client", { socketId })
+        Note over Server: Promote to active registry
         Server->>Client: emit("permission_granted")
-        Server->>Client: emit("current_state", currentMediaState)
-        Server->>Controller: emit("join_request_resolved", { socketId, approved: true })
-        Server->>Controller: emit("device_list", updatedDeviceLists)
-    else Connection Rejected
-        Controller->>Server: emit("reject_client", { socketId })
-        Note over Server: Purge from pending registry
-        Server->>Client: emit("permission_denied")
-        Server->>Controller: emit("join_request_resolved", { socketId, approved: false })
+        Server->>Client: emit("current_state", currentState)
+        Server->>Host: emit("join_request_resolved", { socketId, approved: true })
+        Server->>Host: emit("device_list", activeDevices)
     end
-```
 
-### 2. Media Sync & Control Flow
-Playback controls (play, pause, seek, load) propagate instantly from the Host Controller to the server, updating the authoritative state and broadcasting commands to all active clients.
+    %% Phase 2: Single-Host IP Arbitration
+    rect rgb(45, 30, 30)
+        Note over Host, Backup: Phase 2: Single-Host IP Arbitration (Same IP Address)
+        Host->>Server: emit("identify", { role: "controller", name: "Controller A" })
+        Note over Server: First controller on this IP becomes HOST
+        Server->>Host: emit("host_status", { isHost: true })
+        Backup->>Server: emit("identify", { role: "controller", name: "Controller B" })
+        Note over Server: Secondary controller on same IP becomes VIEW-ONLY
+        Server->>Backup: emit("host_status", { isHost: false })
+        Note over Host, Server: If Host disconnects, promote secondary controller
+        Host->>Server: Disconnects
+        Server->>Backup: emit("host_status", { isHost: true })
+    end
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Controller as Host Controller
-    participant Server as Sync Server
-    actor Client1 as Active Client A
-    actor Client2 as Active Client B
+    %% Phase 3: Media Sync & Control Flow
+    rect rgb(30, 45, 30)
+        Note over Host, Client: Phase 3: Media Operations & Playback Sync
+        Host->>Server: emit("command", { type: "load", mediaType: "local_video", fileUrl: "..." })
+        Note over Server: Update Authoritative State
+        Server->>Client: emit("command", { type: "load", mediaType: "local_video", ... })
+        Server->>Host: emit("command", { type: "load", mediaType: "local_video", ... })
+        Host->>Server: emit("command", { type: "play" })
+        Server->>Client: emit("command", { type: "play" })
+        Server->>Host: emit("command", { type: "play" })
+        Host->>Server: emit("command", { type: "seek", time: 120 })
+        Server->>Client: emit("command", { type: "seek", time: 120 })
+        Server->>Host: emit("command", { type: "seek", time: 120 })
+    end
 
-    Controller->>Server: emit("command", { type: "load", mediaType: "youtube", videoId: "XYZ..." })
-    Note over Server: Set currentMediaState
-    Server->>Client1: emit("command", { type: "load", ... })
-    Server->>Client2: emit("command", { type: "load", ... })
-    Server->>Controller: emit("command", { type: "load", ... })
-    Server->>Server: Broadcast updated state to all
+    %% Phase 4: PDF Presentation Sync
+    rect rgb(30, 45, 45)
+        Note over Host, Client: Phase 4: PDF Presentation & Presentation Tools
+        Host->>Server: emit("command", { type: "load", mediaType: "pdf", fileUrl: "..." })
+        Server->>Client: emit("command", { type: "load", mediaType: "pdf", ... })
+        Host->>Server: emit("pdf_page", { page: 4 })
+        Server->>Client: emit("pdf_page", { page: 4 })
+        Host->>Server: emit("pdf_draw", { startX, startY, endX, endY, color, width })
+        Server-->>Client: broadcast("pdf_draw", strokeData)
+        Host->>Server: emit("pdf_laser", { x, y, visible: true })
+        Server-->>Client: broadcast("pdf_laser", laserData)
+    end
 
-    Controller->>Server: emit("command", { type: "play" })
-    Note over Server: Update state.isPlaying = true
-    Server->>Client1: emit("command", { type: "play" })
-    Server->>Client2: emit("command", { type: "play" })
-    Server->>Controller: emit("command", { type: "play" })
-
-    Controller->>Server: emit("command", { type: "seek", time: 72 })
-    Note over Server: Update state.time = 72
-    Server->>Client1: emit("command", { type: "seek", time: 72 })
-    Server->>Client2: emit("command", { type: "seek", time: 72 })
-    Server->>Controller: emit("command", { type: "seek", time: 72 })
-```
-
-### 3. PDF Slide Sync & Drawing Canvas Flow
-Slide changes, drawing strokes on the presentation layer, laser pointer coordinates, and canvas purges are synchronized seamlessly in real-time.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Controller as Host Controller
-    participant Server as Sync Server
-    actor Client1 as Spectator Client A
-    actor Client2 as Spectator Client B
-
-    Controller->>Server: emit("pdf_page", { page: 5 })
-    Note over Server: Update state.pdfPage = 5
-    Server->>Client1: emit("pdf_page", { page: 5 })
-    Server->>Client2: emit("pdf_page", { page: 5 })
-
-    Controller->>Server: emit("pdf_draw", { startX, startY, endX, endY, color, width })
-    Server->>Client1: emit("pdf_draw", { startX, startY, ... })
-    Server->>Client2: emit("pdf_draw", { startX, startY, ... })
-
-    Controller->>Server: emit("pdf_laser", { x, y, active: true })
-    Server->>Client1: emit("pdf_laser", { x, y, active: true })
-    Server->>Client2: emit("pdf_laser", { x, y, active: true })
-
-    Controller->>Server: emit("pdf_clear")
-    Server->>Client1: emit("pdf_clear")
-    Server->>Client2: emit("pdf_clear")
+    %% Phase 5: Real-time Chat Messaging
+    rect rgb(45, 45, 45)
+        Note over Client, Host: Phase 5: Real-Time Chat Engine
+        Client->>Server: emit("identify_chat", { name: "Guest", role: "client" })
+        Server->>Client: emit("chat_online_count", count)
+        Client->>Server: emit("chat_send", { message: "Hello!" })
+        Server->>Client: emit("chat_broadcast", chatMessage)
+        Server->>Host: emit("chat_broadcast", chatMessage)
+    end
 ```
 
 ---
 
-## 📂 Project Structure
+## <a id="project-directory-map"></a>📂 Project Directory Map
 
 ```
 Media_Sync/
@@ -148,7 +152,7 @@ Media_Sync/
 
 ---
 
-## 🛠️ Installation & Configuration
+## <a id="installation--configuration"></a>🛠️ Installation & Configuration
 
 ### Prerequisites
 *   [Node.js](https://nodejs.org/) (v16+ recommended)
@@ -171,19 +175,15 @@ Media_Sync/
      "HOTSPOT_IP": "192.168.1.100"
    }
    ```
-   > [!TIP]
-   > To find your computer's IP address on the network:
-   > - **Windows:** Run `ipconfig` in Command Prompt and check the IPv4 Address under your active network adapter.
-   > - **macOS/Linux:** Run `ifconfig` or `ip a` in the terminal.
 
 3. **Start the Server:**
    Launch the sync instance:
    ```bash
    npm start
    ```
-   *or run directly:*
+   *For development with hot-reload:*
    ```bash
-   node server.js
+   npm run dev
    ```
 
 4. **Access the Application:**
@@ -191,17 +191,23 @@ Media_Sync/
    *   **Host URL:** `http://<your-ip>:8000/controller.html`
    *   **Client URL:** `http://<your-ip>:8000/client.html`
    
-   Open the Controller URL on your host device (e.g. phone or computer) and scan the QR code to connect spectator devices.
+   Open the Controller URL on your host device (e.g., phone or computer) and scan the QR code to connect spectator devices.
+
+### Auto-Configuring Network IPs
+
+To find your computer's IP address on the network:
+*   **Windows:** Run `ipconfig` in Command Prompt and check the `IPv4 Address` under your active network adapter.
+*   **macOS/Linux:** Run `ifconfig` or `ip a` in the terminal.
 
 ---
 
-## 🔌 REST API Documentation
+## <a id="rest-api-documentation"></a>🔌 REST API Documentation
 
 The server exposes HTTP endpoints for managing uploads, configuration QR codes, and retrieving connection metrics.
 
-### 📶 QR Code Generation
+### 1. QR Code Services
 
-#### 1. Get WiFi QR Code
+#### Get WiFi QR Code
 *   **Endpoint:** `GET /api/wifi-qr`
 *   **Purpose:** Returns a base64 PNG data URL representing the credential payload for device WiFi auto-connection.
 *   **Response (`200 OK`):**
@@ -212,7 +218,7 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
     }
     ```
 
-#### 2. Get Connection URLs QR Code
+#### Get Connection URLs QR Code
 *   **Endpoint:** `GET /api/connection-qr`
 *   **Purpose:** Generates QR codes pointing directly to the Client and Controller pages.
 *   **Response (`200 OK`):**
@@ -229,9 +235,9 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
 
 ---
 
-### 📊 System Status & Client Management
+### 2. Session & Client Metrics
 
-#### 3. System Metrics Status
+#### System Metrics Status
 *   **Endpoint:** `GET /api/status`
 *   **Purpose:** Overall metrics overview of the active session.
 *   **Response (`200 OK`):**
@@ -256,7 +262,7 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
     }
     ```
 
-#### 4. Active Clients List
+#### Active Clients List
 *   **Endpoint:** `GET /api/clients`
 *   **Response (`200 OK`):**
     ```json
@@ -273,7 +279,7 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
     }
     ```
 
-#### 5. Health Check
+#### Health Check
 *   **Endpoint:** `GET /health`
 *   **Response (`200 OK`):**
     ```json
@@ -289,9 +295,9 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
 
 ---
 
-### 📁 Uploads & Media Assets Management
+### 3. Uploads & Asset Management
 
-#### 6. Upload Local File
+#### Upload Local File
 *   **Endpoint:** `POST /api/upload`
 *   **Payload:** Multipart Form Data with the file under key name `file`.
 *   **Supported File Types:** Video (`.mp4`, `.webm`, `.mkv`, `.avi`, `.mov`, `.flv`, `.wmv`, `.m4v`, `.3gp`), Audio (`.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.flac`), Documents (`.pdf`).
@@ -311,7 +317,7 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
     }
     ```
 
-#### 7. Retrieve Uploaded Files List
+#### Retrieve Uploaded Files List
 *   **Endpoint:** `GET /api/files`
 *   **Response (`200 OK`):**
     ```json
@@ -330,7 +336,7 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
     }
     ```
 
-#### 8. Rescan Uploads Folder
+#### Rescan Uploads Folder
 *   **Endpoint:** `POST /api/files/rescan`
 *   **Purpose:** Triggers a scan on the `/uploads` directory to populate the server's tracking index with any files added out-of-band.
 *   **Response (`200 OK`):**
@@ -343,7 +349,7 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
     }
     ```
 
-#### 9. Delete File
+#### Delete File
 *   **Endpoint:** `DELETE /api/files/:filename`
 *   **Purpose:** Removes the file from the disk. If the deleted file is currently active, the server halts playback on all clients.
 *   **Response (`200 OK`):**
@@ -356,11 +362,12 @@ The server exposes HTTP endpoints for managing uploads, configuration QR codes, 
 
 ---
 
-## ⚡ WebSocket Event Protocol API
+## <a id="websocket-event-protocol-api"></a>⚡ WebSocket Event Protocol API
 
 Real-time synchronization uses Socket.IO. Below is the reference map of incoming and outgoing events.
 
-### 🛡️ Identity & Access Registration
+### 1. Connection & Identity Control
+
 *   **`identify` (Client/Controller ➔ Server):** Identifies connection role and user name.
     *   Payload: `{ role: "client" | "controller", name: "Jane Doe" }`
 *   **`waiting_for_permission` (Server ➔ Client):** Sent to clients placed in the pending authorization queue.
@@ -374,8 +381,13 @@ Real-time synchronization uses Socket.IO. Below is the reference map of incoming
 *   **`kicked` (Server ➔ Client):** Disconnect notification sent to target client.
 *   **`host_status` (Server ➔ Controller):** Informs controller if they are the primary host.
     *   Payload: `{ isHost: true | false, ip: "192.168.1.100" }`
+*   **`device_list` (Server ➔ Controllers):** Sends active lists of clients and controllers.
+*   **`pending_count` (Server ➔ Controllers):** Updates pending connection counter.
 
-### 🎮 Media Commands & Playback
+---
+
+### 2. Media Sync & Playback Commands
+
 *   **`command` (Controller ➔ Server ➔ All Devices):** Broad range of core playback instructions.
     *   *Load Payload:* `{ type: "load", mediaType: "youtube" | "local_video" | "local_audio" | "pdf", url?: string, videoId?: string, fileUrl?: string, fileName?: string }`
     *   *Play Payload:* `{ type: "play" }`
@@ -387,20 +399,26 @@ Real-time synchronization uses Socket.IO. Below is the reference map of incoming
     *   *Sync Payload:* `{ type: "sync" }` (Forces state alignment across clients).
 *   **`current_state` (Server ➔ All Devices):** Broadcasts the master server state model. Sent on updates and client joins.
 
-### 🖋️ Interactive PDF / Slides
+---
+
+### 3. PDF Slides & Live Presentation Tools
+
 *   **`pdf_page` (Controller ➔ Server ➔ All):** Synchronizes slide navigation.
     *   Payload: `{ page: number }`
 *   **`pdf_zoom` (Controller ➔ Server ➔ All):** Synchronizes canvas zoom scale.
-    *   Payload: `{ zoom: number }` (e.g. `0.75`, `1.5`)
+    *   Payload: `{ zoom: number }` (e.g., `0.75`, `1.5`)
 *   **`pdf_draw` (Controller ➔ Server ➔ All Clients):** Propagates custom pen lines on slide coordinates.
     *   Payload: `{ startX, startY, endX, endY, color, width }`
 *   **`pdf_laser` (Controller ➔ Server ➔ All Clients):** Tracks current laser pointer hover coordinates on canvas.
-    *   Payload: `{ x, y, active: boolean }`
+    *   Payload: `{ x, y, visible: boolean }`
 *   **`pdf_clear` (Controller ➔ Server ➔ All):** Purges all synchronized drawing overlays.
 *   **`pdf_scroll` (Controller ➔ Server ➔ All Clients):** Syncs container scroll alignments.
     *   Payload: `{ scrollLeft, scrollTop }`
 
-### 💬 Chat Room Messaging
+---
+
+### 4. Real-Time Chat Room Emitters
+
 *   **`identify_chat` (Client/Controller ➔ Server):** Registers user details for the chat instance.
     *   Payload: `{ name: string, role: string }`
 *   **`chat_send` (Client/Controller ➔ Server):** Submits a new text message.
@@ -412,10 +430,10 @@ Real-time synchronization uses Socket.IO. Below is the reference map of incoming
 
 ---
 
-## 🐛 Troubleshooting
+## <a id="troubleshooting--sync-calibration"></a>🐛 Troubleshooting & Sync Calibration
 
 ### ❗ Clients Out of Sync / Latency Buffering
-1. Enter a specific time offset in seconds on the controller's **Seek** input field (e.g. `12` or `120`).
+1. Enter a specific time offset in seconds on the controller's **Seek** input field (e.g., `12` or `120`).
 2. Click **Seek**.
 3. Re-send the Seek command **1 or 2 times**. This prompts client media elements to drop frame buffers and align directly with the target timestamp.
 4. Click the **Sync All** button on the controller to force state updates.
@@ -423,7 +441,7 @@ Real-time synchronization uses Socket.IO. Below is the reference map of incoming
 ### ❗ Media Fails to Load or Play
 *   **IP Binding Issues:** Ensure that `HOTSPOT_IP` inside `config.json` matches your server's current IPv4 address. If the computer's network interface IP changes, client requests will fail.
 *   **Connection Gaps:** Verify that all spectator devices are connected to the exact same WiFi hotspot or local area router as the server.
-*   **Format Constraints:** Verify that the uploaded files use web-native codecs supported by target client browsers (e.g. H.264/AAC inside `.mp4`, Vorbis/VP8 in `.webm`).
+*   **Format Constraints:** Verify that the uploaded files use web-native codecs supported by target client browsers (e.g., H.264/AAC inside `.mp4`, Vorbis/VP8 in `.webm`).
 
 ### ❗ Mobile Streaming Interruptions
 *   The backend contains a custom **HTTP range request handler** (`bytes` header protocol) which is critical for iOS Safari and Android Chrome compatibility, letting players seek without waiting to download full files. If files fail to seek on mobile, check for system software restricting port traffic (e.g., local firewalls).
